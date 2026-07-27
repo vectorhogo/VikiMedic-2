@@ -44,7 +44,7 @@ export const UserManagementModule: React.FC<UserManagementModuleProps> = ({
         <div>
           <div className="flex items-center gap-2 text-xs font-bold text-emerald-600 mb-1">
             <ShieldCheck className="w-4 h-4" />
-            <span>تنظیمات پیشرفته سیستم &gt; پایه مدیریت کاربران (Patch 03.0)</span>
+            <span>تنظیمات پیشرفته سیستم &gt; مدیریت کاربران</span>
           </div>
           <h2 className="text-xl sm:text-2xl font-black text-slate-900">مدیریت کاربران و دسترسی‌ها</h2>
           <p className="text-xs text-slate-500 mt-1">

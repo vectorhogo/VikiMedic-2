@@ -24,8 +24,15 @@ import {
   Role,
   RoleAuditLog,
   UserManagementLog,
+  SystemResetOptions,
+  SystemResetReport,
+  SystemBackupRecord,
+  SystemSafetyCheckResult,
+  SystemHealthReport,
+  InitialStaffEntry,
 } from '../domain/types';
 import { DEFAULT_SYSTEM_ROLES } from '../domain/permissions';
+import { AISettingsConfig, DEFAULT_AI_SETTINGS, ChatMessage } from '../domain/aiTypes';
 
 const STORAGE_KEYS = {
   CLINICS: 'vikimedic_v2_clinics',
@@ -50,6 +57,10 @@ const STORAGE_KEYS = {
   USER_MANAGEMENT_LOGS: 'vikimedic_v2_user_management_logs',
   SHIFT_HANDOVERS: 'vikimedic_v2_shift_handovers',
   SHIFT_AUDIT_LOGS: 'vikimedic_v2_shift_audit_logs',
+  SYSTEM_BACKUPS: 'vikimedic_v2_system_backups',
+  SYSTEM_RESET_REPORTS: 'vikimedic_v2_system_reset_reports',
+  AI_SETTINGS: 'vikimedic_v2_ai_settings',
+  VIKI_CHAT_HISTORY: 'vikimedic_v2_viki_chat_history',
 };
 
 // Initial Multi-Clinic Seed Data
@@ -1089,7 +1100,7 @@ const INITIAL_PATIENT_ORDERS: PatientOrder[] = [
 ];
 
 export class LocalStorageManager {
-  private static getItem<T>(key: string, fallback: T): T {
+  public static getItem<T>(key: string, fallback: T): T {
     try {
       const data = localStorage.getItem(key);
       return data ? JSON.parse(data) : fallback;
@@ -1098,7 +1109,7 @@ export class LocalStorageManager {
     }
   }
 
-  private static setItem<T>(key: string, value: T): void {
+  public static setItem<T>(key: string, value: T): void {
     try {
       localStorage.setItem(key, JSON.stringify(value));
     } catch (e) {
@@ -1106,7 +1117,7 @@ export class LocalStorageManager {
     }
   }
 
-  private static removeItem(key: string): void {
+  public static removeItem(key: string): void {
     try {
       localStorage.removeItem(key);
     } catch (e) {
@@ -1484,5 +1495,537 @@ export class LocalStorageManager {
     this.setItem(STORAGE_KEYS.SHIFT_AUDIT_LOGS, [newLog, ...list]);
     return newLog;
   }
+
+  // System Patch 01: System Backups, Reports & Safe Data Reset Storage Methods
+  public static getSystemBackups(): SystemBackupRecord[] {
+    return this.getItem<SystemBackupRecord[]>(STORAGE_KEYS.SYSTEM_BACKUPS, []);
+  }
+
+  public static getSystemResetReports(): SystemResetReport[] {
+    return this.getItem<SystemResetReport[]>(STORAGE_KEYS.SYSTEM_RESET_REPORTS, []);
+  }
+
+  public static performSafeDataReset(
+    options: SystemResetOptions,
+    adminUser: { fullName: string; role: string },
+    activeClinicId: string
+  ): SystemResetReport {
+    const now = new Date();
+    const dateFa = now.toLocaleDateString('fa-IR');
+    const timeFa = now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+
+    // 1. Gather operational and master data snapshots
+    const patients = this.getItem<Patient[]>(STORAGE_KEYS.PATIENTS, []);
+    const queue = this.getItem<QueueItem[]>(STORAGE_KEYS.QUEUE, []);
+    const medicalRecords = this.getItem<MedicalRecord[]>(STORAGE_KEYS.MEDICAL_RECORDS, []);
+    const transactions = this.getItem<FinancialTransaction[]>(STORAGE_KEYS.TRANSACTIONS, []);
+    const inventory = this.getItem<InventoryItem[]>(STORAGE_KEYS.INVENTORY, []);
+    const patientOrders = this.getItem<PatientOrder[]>(STORAGE_KEYS.PATIENT_ORDERS, []);
+    const shiftHistories = this.getItem<ShiftAssignmentHistory[]>(STORAGE_KEYS.SHIFT_HISTORIES, []);
+    const shiftHandovers = this.getItem<ShiftHandoverRecord[]>(STORAGE_KEYS.SHIFT_HANDOVERS, []);
+    const shiftAuditLogs = this.getItem<ShiftAuditLog[]>(STORAGE_KEYS.SHIFT_AUDIT_LOGS, []);
+    const auditLogs = this.getItem<AuditLog[]>(STORAGE_KEYS.AUDIT_LOGS, []);
+    const authActivityLogs = this.getItem<AuthActivityLog[]>(STORAGE_KEYS.AUTH_ACTIVITY_LOGS, []);
+    const roleAuditLogs = this.getItem<RoleAuditLog[]>(STORAGE_KEYS.ROLE_AUDIT_LOGS, []);
+    const userManagementLogs = this.getItem<UserManagementLog[]>(STORAGE_KEYS.USER_MANAGEMENT_LOGS, []);
+    const staff = this.getStaff();
+    const catalogItems = this.getItem<CatalogItem[]>(STORAGE_KEYS.CATALOG_ITEMS, []);
+    const shiftConfigs = this.getItem<ShiftConfig[]>(STORAGE_KEYS.SHIFT_CONFIGS, []);
+
+    // 2. Count deleted items
+    const deletedPatients = patients.length;
+    const deletedMedicalRecords = medicalRecords.length;
+    const deletedVisits = medicalRecords.length;
+    const deletedOrders = patientOrders.length;
+    const deletedTransactions = transactions.length;
+    const deletedInventory = inventory.length;
+    const deletedQueue = queue.length;
+    const deletedHandovers = shiftHandovers.length;
+    const deletedShiftHistories = shiftHistories.length;
+    const deletedLogs = auditLogs.length + authActivityLogs.length + roleAuditLogs.length + userManagementLogs.length + shiftAuditLogs.length;
+
+    // 3. Create & Save Backup Record BEFORE clearing any data
+    const backupSnapshot = {
+      patients,
+      queue,
+      medicalRecords,
+      transactions,
+      inventory,
+      patientOrders,
+      shiftHistories,
+      shiftHandovers,
+      shiftAuditLogs,
+      auditLogs,
+      authActivityLogs,
+      roleAuditLogs,
+      userManagementLogs,
+      staff,
+      catalogItems,
+      shiftConfigs,
+    };
+
+    const totalRecordCount =
+      deletedPatients +
+      deletedMedicalRecords +
+      deletedOrders +
+      deletedTransactions +
+      deletedInventory +
+      deletedQueue +
+      deletedHandovers +
+      deletedShiftHistories +
+      deletedLogs;
+
+    const backupRecord: SystemBackupRecord = {
+      id: 'bkp-' + Date.now() + '-' + Math.random().toString(36).substring(2, 6),
+      createdAt: `${dateFa} - ${timeFa}`,
+      createdBy: adminUser.fullName,
+      clinicId: activeClinicId,
+      dataSnapshot: backupSnapshot,
+      recordCount: totalRecordCount,
+    };
+
+    const backups = this.getSystemBackups();
+    this.setItem(STORAGE_KEYS.SYSTEM_BACKUPS, [backupRecord, ...backups]);
+
+    // 4. Delete Operational Data
+    this.setItem(STORAGE_KEYS.PATIENTS, []);
+    this.setItem(STORAGE_KEYS.QUEUE, []);
+    this.setItem(STORAGE_KEYS.MEDICAL_RECORDS, []);
+    this.setItem(STORAGE_KEYS.TRANSACTIONS, []);
+    this.setItem(STORAGE_KEYS.INVENTORY, []);
+    this.setItem(STORAGE_KEYS.PATIENT_ORDERS, []);
+    this.setItem(STORAGE_KEYS.SHIFT_HISTORIES, []);
+    this.setItem(STORAGE_KEYS.SHIFT_HANDOVERS, []);
+    this.setItem(STORAGE_KEYS.SHIFT_AUDIT_LOGS, []);
+    this.setItem(STORAGE_KEYS.AUDIT_LOGS, []);
+    this.setItem(STORAGE_KEYS.AUTH_ACTIVITY_LOGS, []);
+    this.setItem(STORAGE_KEYS.ROLE_AUDIT_LOGS, []);
+    this.setItem(STORAGE_KEYS.USER_MANAGEMENT_LOGS, []);
+
+    // 5. Process Optional Reset Requests
+    let deletedUsersCount = 0;
+    let deletedMedicinesCount = 0;
+    let deletedServicesCount = 0;
+
+    let remainingStaff = [...staff];
+    if (options.deleteUsers) {
+      // Keep administrators only
+      const admins = staff.filter((s) => s.role === 'ADMINISTRATOR');
+      deletedUsersCount = staff.length - admins.length;
+      remainingStaff = admins.length > 0 ? admins : staff.slice(0, 1);
+      this.saveStaff(remainingStaff);
+    }
+
+    let remainingCatalog = [...catalogItems];
+    if (options.deleteMedicines) {
+      const initialCatCount = remainingCatalog.length;
+      remainingCatalog = remainingCatalog.filter((c) => c.type !== 'MEDICINE' && c.type !== 'CONSUMABLE');
+      deletedMedicinesCount = initialCatCount - remainingCatalog.length;
+    }
+
+    if (options.deleteServices) {
+      const initialCatCount = remainingCatalog.length;
+      remainingCatalog = remainingCatalog.filter((c) => c.type === 'MEDICINE' || c.type === 'CONSUMABLE');
+      deletedServicesCount = initialCatCount - remainingCatalog.length;
+    }
+
+    if (options.deleteMedicines || options.deleteServices) {
+      this.setItem(STORAGE_KEYS.CATALOG_ITEMS, remainingCatalog);
+    }
+
+    // 6. Build Final SystemResetReport
+    const resetReport: SystemResetReport = {
+      id: 'resetrep-' + Date.now(),
+      date: dateFa,
+      time: timeFa,
+      administratorName: adminUser.fullName,
+      administratorRole: adminUser.role,
+      deletedCounts: {
+        patients: deletedPatients,
+        visits: deletedVisits,
+        medicalRecords: deletedMedicalRecords,
+        patientOrders: deletedOrders,
+        transactions: deletedTransactions,
+        inventory: deletedInventory,
+        appointments: deletedQueue,
+        queue: deletedQueue,
+        shiftHandovers: deletedHandovers,
+        shiftHistories: deletedShiftHistories,
+        notifications: 0,
+        activityLogs: deletedLogs,
+        users: deletedUsersCount,
+        medicines: deletedMedicinesCount,
+        services: deletedServicesCount,
+      },
+      remainingCounts: {
+        users: remainingStaff.length,
+        catalogItems: remainingCatalog.length,
+        roles: DEFAULT_SYSTEM_ROLES.length,
+        shiftConfigs: shiftConfigs.length,
+      },
+      backupRefId: backupRecord.id,
+      backupTimestamp: backupRecord.createdAt,
+    };
+
+    const reports = this.getSystemResetReports();
+    this.setItem(STORAGE_KEYS.SYSTEM_RESET_REPORTS, [resetReport, ...reports]);
+
+    return resetReport;
+  }
+
+  public static validateResetSafetyChecks(activeClinicId: string): SystemSafetyCheckResult {
+    const failureReasons: string[] = [];
+
+    // 1. Check Session & Auth
+    const authSession = this.getItem<AuthSession | null>(STORAGE_KEYS.AUTH_SESSION, null);
+    const isSessionSafe = !!authSession;
+    if (!isSessionSafe) {
+      failureReasons.push('نشست کاربری فعال یافت نشد یا احراز هویت نامعتبر است.');
+    }
+
+    // 2. Check Cashbox & Shift Handovers
+    const shiftHandovers = this.getItem<ShiftHandoverRecord[]>(STORAGE_KEYS.SHIFT_HANDOVERS, []);
+    const hasUnclosedShift = shiftHandovers.some((s) => s.status === 'PENDING');
+    const isCashboxClosed = !hasUnclosedShift;
+    if (!isCashboxClosed) {
+      failureReasons.push('صندوق/شیفت باز یا تحویل‌نشده وجود دارد. ابتدا شیفت و صندوق را نهایی و ببندید.');
+    }
+
+    // 3. Check No Active Backup Running
+    const isNoBackupRunning = true; // No background job running
+
+    // 4. Check Database Integrity
+    let isDatabaseHealthy = true;
+    try {
+      const clinics = this.getClinics();
+      const patients = this.getItem<Patient[]>(STORAGE_KEYS.PATIENTS, []);
+      if (!Array.isArray(clinics) || !Array.isArray(patients)) {
+        isDatabaseHealthy = false;
+      }
+    } catch {
+      isDatabaseHealthy = false;
+    }
+    if (!isDatabaseHealthy) {
+      failureReasons.push('ساختار پایگاه داده محلی آسیب دیده یا غیرقابل خواندن است.');
+    }
+
+    // 5. Check Storage Availability
+    let isStorageAvailable = true;
+    try {
+      const testKey = '__vikimedic_storage_test__';
+      localStorage.setItem(testKey, '1');
+      localStorage.removeItem(testKey);
+    } catch {
+      isStorageAvailable = false;
+    }
+    if (!isStorageAvailable) {
+      failureReasons.push('فضای ذخیره‌سازی مرورگر محدود شده یا در حالت خصوصی قرار دارد.');
+    }
+
+    const isPassed =
+      isSessionSafe && isCashboxClosed && isNoBackupRunning && isDatabaseHealthy && isStorageAvailable;
+
+    return {
+      isSessionSafe,
+      isCashboxClosed,
+      isNoBackupRunning,
+      isDatabaseHealthy,
+      isStorageAvailable,
+      isPassed,
+      failureReasons,
+    };
+  }
+
+  public static restoreSystemBackup(backupId: string): boolean {
+    const backups = this.getSystemBackups();
+    const target = backups.find((b) => b.id === backupId);
+    if (!target || !target.dataSnapshot) return false;
+
+    const snap = target.dataSnapshot;
+
+    if (snap.patients) this.setItem(STORAGE_KEYS.PATIENTS, snap.patients);
+    if (snap.queue) this.setItem(STORAGE_KEYS.QUEUE, snap.queue);
+    if (snap.medicalRecords) this.setItem(STORAGE_KEYS.MEDICAL_RECORDS, snap.medicalRecords);
+    if (snap.transactions) this.setItem(STORAGE_KEYS.TRANSACTIONS, snap.transactions);
+    if (snap.inventory) this.setItem(STORAGE_KEYS.INVENTORY, snap.inventory);
+    if (snap.patientOrders) this.setItem(STORAGE_KEYS.PATIENT_ORDERS, snap.patientOrders);
+    if (snap.shiftHistories) this.setItem(STORAGE_KEYS.SHIFT_HISTORIES, snap.shiftHistories);
+    if (snap.shiftHandovers) this.setItem(STORAGE_KEYS.SHIFT_HANDOVERS, snap.shiftHandovers);
+    if (snap.staff) this.saveStaff(snap.staff);
+    if (snap.catalogItems) this.setItem(STORAGE_KEYS.CATALOG_ITEMS, snap.catalogItems);
+    if (snap.shiftConfigs) this.setItem(STORAGE_KEYS.SHIFT_CONFIGS, snap.shiftConfigs);
+
+    return true;
+  }
+
+  public static performSystemHealthCheck(): SystemHealthReport {
+    const details: string[] = [];
+
+    // Database Integrity
+    let databaseIntegrity = true;
+    try {
+      const patients = this.getItem<Patient[]>(STORAGE_KEYS.PATIENTS, []);
+      const staff = this.getStaff();
+      const clinics = this.getClinics();
+      if (!Array.isArray(patients) || !Array.isArray(staff) || !Array.isArray(clinics)) {
+        databaseIntegrity = false;
+        details.push('خطا در خواندن کالکشن‌های اصلی پایگاه داده');
+      } else {
+        details.push(`یکپارچگی دیتابیس تایید شد (${patients.length} بیمار، ${staff.length} پرسنل)`);
+      }
+    } catch (e: any) {
+      databaseIntegrity = false;
+      details.push('استثنا در برقراری ارتباط با پایگاه داده: ' + e?.message);
+    }
+
+    // Relationship Validation
+    let relationshipValidation = true;
+    try {
+      const medicalRecords = this.getItem<MedicalRecord[]>(STORAGE_KEYS.MEDICAL_RECORDS, []);
+      const patients = this.getItem<Patient[]>(STORAGE_KEYS.PATIENTS, []);
+      const patientIds = new Set(patients.map((p) => p.id));
+      const orphanedRecords = medicalRecords.filter((m) => m.patientId && !patientIds.has(m.patientId));
+      if (orphanedRecords.length > 0) {
+        relationshipValidation = false;
+        details.push(`تعداد ${orphanedRecords.length} پرونده بدون ارجاع بیمار معتبر یافت شد.`);
+      } else {
+        details.push('روابط پرونده‌ها و بیماران کاملاً معتبر است.');
+      }
+    } catch {
+      relationshipValidation = false;
+    }
+
+    // Missing Settings Check
+    let missingSettingsCheck = true;
+    try {
+      const activeClinicId = this.getItem<string>(STORAGE_KEYS.ACTIVE_CLINIC_ID, '');
+      const clinics = this.getClinics();
+      const activeClinic = clinics.find((c) => c.id === activeClinicId) || clinics[0];
+
+      if (!activeClinic || !activeClinic.name || !activeClinic.phone) {
+        missingSettingsCheck = false;
+        details.push('اطلاعات پایه کلینیک فعال (نام یا تلفن) ناقص است.');
+      } else {
+        details.push(`تنظیمات کلینیک "${activeClinic.name}" کامل است.`);
+      }
+    } catch {
+      missingSettingsCheck = false;
+    }
+
+    // Storage Validation
+    let storageValidation = true;
+    try {
+      const testKey = '__vikimedic_health_test__';
+      localStorage.setItem(testKey, 'OK');
+      const val = localStorage.getItem(testKey);
+      localStorage.removeItem(testKey);
+      if (val !== 'OK') storageValidation = false;
+      else details.push('تست خواندن و نوشتن حافظه مرورگر با موفقیت انجام شد.');
+    } catch {
+      storageValidation = false;
+      details.push('حافظه مرورگر دردسترس نیست یا پر شده است.');
+    }
+
+    // Backup Validation
+    let backupValidation = true;
+    try {
+      const backups = this.getSystemBackups();
+      details.push(`تعداد ${backups.length} نسخه پشتیبان / اسنپ‌شات معتبر در سیستم ذخیره شده است.`);
+    } catch {
+      backupValidation = false;
+      details.push('ارزیابی نسخه‌های پشتیبان با خطا مواجه شد.');
+    }
+
+    const passed =
+      databaseIntegrity && relationshipValidation && missingSettingsCheck && storageValidation && backupValidation;
+
+    return {
+      databaseIntegrity,
+      relationshipValidation,
+      missingSettingsCheck,
+      storageValidation,
+      backupValidation,
+      passed,
+      timestamp: new Date().toLocaleString('fa-IR'),
+      details,
+    };
+  }
+
+  public static isFirstRunOrFreshReset(): boolean {
+    const patients = this.getItem<Patient[]>(STORAGE_KEYS.PATIENTS, []);
+    const transactions = this.getItem<FinancialTransaction[]>(STORAGE_KEYS.TRANSACTIONS, []);
+    const orders = this.getItem<PatientOrder[]>(STORAGE_KEYS.PATIENT_ORDERS, []);
+    return patients.length === 0 && transactions.length === 0 && orders.length === 0;
+  }
+
+  public static getAISettings(): AISettingsConfig {
+    const saved = this.getItem<AISettingsConfig | null>(STORAGE_KEYS.AI_SETTINGS, null);
+    if (!saved) return DEFAULT_AI_SETTINGS;
+    return { ...DEFAULT_AI_SETTINGS, ...saved };
+  }
+
+  public static saveAISettings(settings: AISettingsConfig): void {
+    this.setItem(STORAGE_KEYS.AI_SETTINGS, settings);
+  }
+
+  public static getVikiChatHistory(): ChatMessage[] {
+    return this.getItem<ChatMessage[]>(STORAGE_KEYS.VIKI_CHAT_HISTORY, []);
+  }
+
+  public static saveVikiChatHistory(messages: ChatMessage[]): void {
+    this.setItem(STORAGE_KEYS.VIKI_CHAT_HISTORY, messages);
+  }
+
+  public static clearVikiChatHistory(): void {
+    this.removeItem(STORAGE_KEYS.VIKI_CHAT_HISTORY);
+  }
+
+  public static loadDemoData(): { patientsCount: number; visitsCount: number; transactionsCount: number } {
+    const now = new Date();
+    const dateFa = now.toLocaleDateString('fa-IR');
+    const timeFa = now.toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+
+    const demoPatients: Patient[] = [
+      {
+        id: 'p-demo-01',
+        clinicId: 'c1',
+        fileNumber: 'P-1001',
+        nationalId: '0012345678',
+        firstName: 'علیرضا',
+        lastName: 'رضایی',
+        gender: 'MALE',
+        phone: '09121112233',
+        birthDate: '1365/04/12',
+        bloodType: 'O+',
+        insuranceType: 'TAMIN_INJTIMAI',
+        address: 'تهران، خیابان شریعتی، کوچه سوم',
+        emergencyPhone: '09121112234',
+        createdAt: `${dateFa} - ${timeFa}`,
+      },
+      {
+        id: 'p-demo-02',
+        clinicId: 'c1',
+        fileNumber: 'P-1002',
+        nationalId: '0023456789',
+        firstName: 'سارا',
+        lastName: 'محمدی',
+        gender: 'FEMALE',
+        phone: '09123334455',
+        birthDate: '1372/08/25',
+        bloodType: 'A+',
+        insuranceType: 'SALAMAT',
+        address: 'تهران، سعادت‌آباد، خیابان سرو',
+        emergencyPhone: '09123334456',
+        createdAt: `${dateFa} - ${timeFa}`,
+      },
+      {
+        id: 'p-demo-03',
+        clinicId: 'c1',
+        fileNumber: 'P-1003',
+        nationalId: '0034567890',
+        firstName: 'مریم',
+        lastName: 'کاظمی',
+        gender: 'FEMALE',
+        phone: '09125556677',
+        birthDate: '1358/11/05',
+        bloodType: 'B+',
+        insuranceType: 'NIZAM_LASHKARI',
+        address: 'تهران، میدان ونک، برج نگار',
+        emergencyPhone: '09125556678',
+        createdAt: `${dateFa} - ${timeFa}`,
+      },
+    ];
+
+    const demoVisits: MedicalRecord[] = [
+      {
+        id: 'mr-demo-01',
+        patientId: 'p-demo-01',
+        doctorId: 'staff-doc-1',
+        doctorName: 'دکتر علیرضا حیدری',
+        medicalCouncilNumber: '۱۲۳۴۵',
+        clinicId: 'c1',
+        visitDate: `${dateFa} - ${timeFa}`,
+        chiefComplaint: 'سردرد مداوم و سرگیجه خفیف به مدت ۳ روز',
+        diagnosis: 'میگرن حاد و افزایش فشار خون خفیف',
+        treatmentNotes: 'بیمار نیازمند پایش فشار خون روزانه و کاهش استرس کاری است.',
+        systolicBP: 130,
+        diastolicBP: 85,
+        pulseRate: 78,
+        temperature: 36.8,
+        weight: 76,
+        prescriptions: [
+          { id: 'rx-demo-01', drugName: 'قرص پروپرانولول ۲۰ میلی‌گرم', dosage: 'روزی ۲ عدد', quantity: 30, instructions: 'بعد از غذا' },
+        ],
+      },
+      {
+        id: 'mr-demo-02',
+        patientId: 'p-demo-02',
+        doctorId: 'staff-doc-1',
+        doctorName: 'دکتر علیرضا حیدری',
+        medicalCouncilNumber: '۱۲۳۴۵',
+        clinicId: 'c1',
+        visitDate: `${dateFa} - ${timeFa}`,
+        chiefComplaint: 'گلودرد شدید و تب همراه با لرز',
+        diagnosis: 'فارنژیت حاد استرپتوکوکی',
+        treatmentNotes: 'توصیه به استراحت مطلق به مدت ۴۸ ساعت و مصرف مایعات فراوان.',
+        systolicBP: 115,
+        diastolicBP: 75,
+        pulseRate: 84,
+        temperature: 38.2,
+        weight: 62,
+        prescriptions: [
+          { id: 'rx-demo-02', drugName: 'کپسول آموکسی‌سیلین ۵۰۰ میلی‌گرم', dosage: 'هر ۸ ساعت ۱ عدد', quantity: 20 },
+        ],
+      },
+    ];
+
+    const demoTransactions: FinancialTransaction[] = [
+      {
+        id: 'tx-demo-01',
+        clinicId: 'c1',
+        invoiceNumber: 'INV-10001',
+        patientId: 'p-demo-01',
+        patientName: 'علیرضا رضایی',
+        amountGross: 450000,
+        discountAmount: 50000,
+        insuranceCoverage: 0,
+        amountNet: 400000,
+        paymentMethod: 'POS',
+        paymentStatus: 'PAID',
+        description: 'حق ویزیت پزشک عمومی و ثبت نسخه',
+        createdAt: `${dateFa} - ${timeFa}`,
+        cashierName: 'مدیر سیستم',
+      },
+      {
+        id: 'tx-demo-02',
+        clinicId: 'c1',
+        invoiceNumber: 'INV-10002',
+        patientId: 'p-demo-02',
+        patientName: 'سارا محمدی',
+        amountGross: 300000,
+        discountAmount: 0,
+        insuranceCoverage: 0,
+        amountNet: 300000,
+        paymentMethod: 'CASH',
+        paymentStatus: 'PAID',
+        description: 'حق ویزیت و درمان تخصصی سرپایی',
+        createdAt: `${dateFa} - ${timeFa}`,
+        cashierName: 'پذیرش اول',
+      },
+    ];
+
+    this.setItem(STORAGE_KEYS.PATIENTS, demoPatients);
+    this.setItem(STORAGE_KEYS.MEDICAL_RECORDS, demoVisits);
+    this.setItem(STORAGE_KEYS.TRANSACTIONS, demoTransactions);
+
+    return {
+      patientsCount: demoPatients.length,
+      visitsCount: demoVisits.length,
+      transactionsCount: demoTransactions.length,
+    };
+  }
 }
+
+export { LocalStorageManager as StorageService };
+
 

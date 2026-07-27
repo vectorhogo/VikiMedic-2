@@ -25,6 +25,7 @@ import { PrintPrescriptionModal } from '../modals/PrintPrescriptionModal';
 import { OrderReceiptPrintModal } from '../orders/OrderReceiptPrintModal';
 import { RoseThemePinModal } from '../modals/RoseThemePinModal';
 import { ShiftControlCenterModal } from '../shift/ShiftControlCenterModal';
+import { InitialClinicSetupWizardModal } from '../system/InitialClinicSetupWizardModal';
 import { VikiAssistant } from '../assistant/VikiAssistant';
 
 import { DashboardModule } from '../../modules/DashboardModule';
@@ -132,6 +133,7 @@ export const DesktopLayout: React.FC = () => {
       <OrderReceiptPrintModal />
       <RoseThemePinModal />
       <ShiftControlCenterModal />
+      <InitialClinicSetupWizardModal />
       <VikiAssistant />
 
       {/* Auth Modals & Screen Lock Overlay */}

@@ -63,6 +63,7 @@ export const SPECIAL_PERMISSIONS_CONFIG: { key: SpecialPermissionKey; titleFa: s
   { key: 'DELETE_INVOICE', titleFa: 'حذف فاکتور مالی', descriptionFa: 'امکان ابطال و حذف کامل سند مالی از سیستم' },
   { key: 'EDIT_MEDICAL_RECORDS', titleFa: 'ویرایش سوابق پزشکی نهایی', descriptionFa: 'امکان اصلاح معاینات و نسخ ثبت‌شده گذشته' },
   { key: 'MANAGE_USERS', titleFa: 'مدیریت کاربران و دسترسی‌ها', descriptionFa: 'امکان تعریف، ویرایش و تخصیص نقش به پرسنل' },
+  { key: 'MANAGE_INITIAL_SETUP', titleFa: 'مدیریت راه‌اندازی اولیه کلینیک', descriptionFa: 'امکان پیکربندی هویت کلینیک، پاکسازی و راه‌اندازی اولیه (قابل تخصیص به مدیر و مسئول پذیرش)' },
 ];
 
 export const SYSTEM_MODULE_DEFINITIONS = PERMISSION_MODULES_CONFIG.map((m) => ({
@@ -129,6 +130,7 @@ function createAllSpecialPermissions(value: boolean): Record<SpecialPermissionKe
     DELETE_INVOICE: value,
     EDIT_MEDICAL_RECORDS: value,
     MANAGE_USERS: value,
+    MANAGE_INITIAL_SETUP: value,
   };
 }
 
@@ -278,6 +280,7 @@ export const DEFAULT_SYSTEM_ROLES: Role[] = [
       ...createAllSpecialPermissions(false),
       APPLY_DISCOUNTS: false,
       CLOSE_CASHBOX: false,
+      MANAGE_INITIAL_SETUP: true,
     },
     createdAt: '1403/01/01',
     updatedAt: '1403/01/01',

@@ -21,12 +21,17 @@ import {
   Shield,
   Briefcase,
   UserCheck,
+  ShieldAlert,
+  ShieldCheck,
 } from 'lucide-react';
 import { useClinic } from '../../application/ClinicContext';
 import { useTheme } from '../ThemeContext';
 import { getSupabaseStatus } from '../../infrastructure/supabaseClient';
 import { ShiftConfig, ShiftPosition } from '../../domain/types';
 import { UserManagementModule } from './UserManagementModule';
+import { InitialClinicSetupPanel } from '../components/system/InitialClinicSetupPanel';
+import { SystemValidationPanel } from '../components/settings/SystemValidationPanel';
+import { ConfigProfilesPanel } from '../components/settings/ConfigProfilesPanel';
 
 export const SettingsModule: React.FC = () => {
   const {
@@ -46,7 +51,9 @@ export const SettingsModule: React.FC = () => {
   const supabaseStatus = getSupabaseStatus();
 
   // Active Settings Tab State
-  const [activeTab, setActiveTab] = useState<'users' | 'general' | 'shifts' | 'shift_histories' | 'database'>('users');
+  const [activeTab, setActiveTab] = useState<
+    'users' | 'system_setup' | 'system_validation' | 'config_profiles' | 'general' | 'shifts' | 'shift_histories' | 'database'
+  >('users');
 
   // Clinic Profile State
   const [clinicName, setClinicName] = useState(activeClinic.name);
@@ -182,7 +189,7 @@ export const SettingsModule: React.FC = () => {
             <Clock className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-lg font-bold">پیکربندی شیفت‌های کاری و تخصیص پرسنل (Patch 02.5)</h1>
+            <h1 className="text-lg font-bold">پیکربندی شیفت‌های کاری و تخصیص پرسنل</h1>
             <p className="text-xs text-[var(--text-muted)] mt-0.5">
               مدیریت شیفت‌های صبگاهی، عصر، شب، تعریف پرسنل موظف و ثبت تاریخچه غیرقابل‌تغییر جابجایی پرسنل
             </p>
@@ -214,7 +221,43 @@ export const SettingsModule: React.FC = () => {
           }`}
         >
           <Users className="w-4 h-4" />
-          <span>مدیریت کاربران و دسترسی‌ها (Patch 03.0)</span>
+          <span>مدیریت کاربران و دسترسی‌ها</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('system_validation')}
+          className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition ${
+            activeTab === 'system_validation'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'bg-[var(--bg-surface)] hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)]'
+          }`}
+        >
+          <ShieldCheck className="w-4 h-4 text-emerald-400" />
+          <span>ارزیابی آمادگی سیستم (Validation)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('config_profiles')}
+          className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition ${
+            activeTab === 'config_profiles'
+              ? 'bg-purple-600 text-white shadow-md'
+              : 'bg-[var(--bg-surface)] hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)]'
+          }`}
+        >
+          <Sliders className="w-4 h-4 text-purple-400" />
+          <span>پروفایل‌های پیکربندی (Profiles)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('system_setup')}
+          className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition ${
+            activeTab === 'system_setup'
+              ? 'bg-purple-600 text-white shadow-md'
+              : 'bg-[var(--bg-surface)] hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)]'
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4" />
+          <span>راه‌اندازی اولیه و پاکسازی</span>
         </button>
 
         <button
@@ -268,6 +311,17 @@ export const SettingsModule: React.FC = () => {
 
       {/* Tab 0: User Management Foundation (Patch 03.0) */}
       {activeTab === 'users' && <UserManagementModule />}
+
+      {/* Tab 0.1: System Readiness Validation (Enterprise Patch 01) */}
+      {activeTab === 'system_validation' && (
+        <SystemValidationPanel onNavigateTab={(tab) => setActiveTab(tab as any)} />
+      )}
+
+      {/* Tab 0.2: Configuration Profiles (Enterprise Patch 01) */}
+      {activeTab === 'config_profiles' && <ConfigProfilesPanel />}
+
+      {/* Tab 0.5: Initial Clinic Setup & Safe Data Reset (System Patch 01) */}
+      {activeTab === 'system_setup' && <InitialClinicSetupPanel />}
 
       {/* Tab 1: Shift Configuration & Staff Assignment */}
       {activeTab === 'shifts' && (

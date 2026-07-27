@@ -70,7 +70,8 @@ export type SpecialPermissionKey =
   | 'OPEN_CLOSED_SHIFT'
   | 'DELETE_INVOICE'
   | 'EDIT_MEDICAL_RECORDS'
-  | 'MANAGE_USERS';
+  | 'MANAGE_USERS'
+  | 'MANAGE_INITIAL_SETUP';
 
 export type ModulePermissionsMap = Record<PermissionModule, PermissionAction[]>;
 
@@ -131,6 +132,101 @@ export interface Clinic {
   licenseNumber: string; // کد پروانه کسب/پزشکی
   isPrimary: boolean;
   logoUrl?: string;
+  taxNumber?: string; // شماره اقتصادی / شناسه ملی
+  description?: string; // معرفی و توضیحات کلینیک
+  workingHours?: string; // ساعات کاری پیش‌فرض
+  email?: string; // ایمیل رسمی کلینیک
+  website?: string; // وب‌سایت کلینیک
+  morningShiftHours?: string; // شیفت صبح
+  eveningShiftHours?: string; // شیفت عصر
+  nightShiftHours?: string; // شیفت شب
+  defaultCurrency?: string; // تومان / ریال
+  defaultLanguage?: string; // فارسی / انگلیسی
+  defaultPrinter?: string; // پرینتر فاکتور پیش‌فرض
+  a4Printer?: string; // پرینتر A4 پیش‌فرض
+  defaultPaperSize?: string; // سایز کاغذ پیش‌فرض (80mm / A5 / A4)
+  receiptTemplate?: string; // قالب فاکتور پیش‌فرض
+}
+
+// ============================================================
+// System Patch 01 & 01.1: Initial Setup, Reset & First-Run Types
+// ============================================================
+
+export interface SystemSafetyCheckResult {
+  isSessionSafe: boolean;
+  isCashboxClosed: boolean;
+  isNoBackupRunning: boolean;
+  isDatabaseHealthy: boolean;
+  isStorageAvailable: boolean;
+  isPassed: boolean;
+  failureReasons: string[];
+}
+
+export interface SystemHealthReport {
+  databaseIntegrity: boolean;
+  relationshipValidation: boolean;
+  missingSettingsCheck: boolean;
+  storageValidation: boolean;
+  backupValidation: boolean;
+  passed: boolean;
+  timestamp: string;
+  details: string[];
+}
+
+export interface InitialStaffEntry {
+  id: string;
+  fullName: string;
+  role: 'DOCTOR' | 'RECEPTIONIST' | 'NURSE' | 'SECURITY' | 'ACCOUNTANT' | 'SECRETARY';
+  phone?: string;
+  specialty?: string;
+}
+
+export interface SystemResetOptions {
+  deleteUsers?: boolean;
+  deleteMedicines?: boolean;
+  deleteServices?: boolean;
+}
+
+export interface SystemResetReport {
+  id: string;
+  date: string;
+  time: string;
+  administratorName: string;
+  administratorRole: string;
+  deletedCounts: {
+    patients: number;
+    visits: number;
+    medicalRecords: number;
+    patientOrders: number;
+    transactions: number;
+    inventory: number;
+    appointments: number;
+    queue: number;
+    shiftHandovers: number;
+    shiftHistories: number;
+    notifications: number;
+    activityLogs: number;
+    users?: number;
+    medicines?: number;
+    services?: number;
+  };
+  remainingCounts: {
+    users: number;
+    catalogItems: number;
+    roles: number;
+    shiftConfigs: number;
+  };
+  backupRefId: string;
+  backupTimestamp: string;
+}
+
+export interface SystemBackupRecord {
+  id: string;
+  createdAt: string;
+  createdBy: string;
+  clinicId: string;
+  dataSnapshot: Record<string, any>;
+  recordCount: number;
 }
 
 // ============================================================

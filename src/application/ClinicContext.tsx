@@ -28,6 +28,11 @@ import {
   AccountStatus,
   EmploymentType,
   UserManagementLog,
+  SystemResetOptions,
+  SystemResetReport,
+  SystemBackupRecord,
+  SystemSafetyCheckResult,
+  SystemHealthReport,
   ModulePermissionsMap,
   FieldPermissionKey,
   SpecialPermissionKey,
@@ -157,6 +162,21 @@ interface ClinicContextType {
     staffChanges?: Partial<Record<ShiftPosition, string>>
   ) => void;
 
+  // System Patch 01 & 01.1: Initial Setup, Reset & First-Run
+  isSetupWizardOpen: boolean;
+  setIsSetupWizardOpen: (open: boolean) => void;
+  systemResetReports: SystemResetReport[];
+  executeSystemReset: (
+    options: SystemResetOptions,
+    adminPassword: string
+  ) => Promise<{ success: boolean; report?: SystemResetReport; error?: string }>;
+  validateResetSafetyChecks: () => SystemSafetyCheckResult;
+  restoreSystemBackup: (backupId: string) => boolean;
+  performSystemHealthCheck: () => SystemHealthReport;
+  loadDemoData: () => { patientsCount: number; visitsCount: number; transactionsCount: number };
+  systemHealthReport: SystemHealthReport | null;
+  setSystemHealthReport: (report: SystemHealthReport | null) => void;
+
   // Patch 02.6: Centralized Catalog Management
   catalogItems: CatalogItem[];
   addCatalogItem: (item: Omit<CatalogItem, 'id' | 'clinicId'>) => CatalogItem;
@@ -246,6 +266,9 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   // Initialize Storage seed on mount
   useEffect(() => {
     LocalStorageManager.initialize();
+    if (LocalStorageManager.isFirstRunOrFreshReset()) {
+      setIsSetupWizardOpen(true);
+    }
   }, []);
 
   // State Declarations
@@ -272,6 +295,50 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   const [isShiftControlCenterOpen, setIsShiftControlCenterOpen] = useState<boolean>(false);
   const [shiftHandovers, setShiftHandovers] = useState<ShiftHandoverRecord[]>(() => LocalStorageManager.getShiftHandovers());
   const [shiftAuditLogs, setShiftAuditLogs] = useState<ShiftAuditLog[]>(() => LocalStorageManager.getShiftAuditLogs());
+
+  // System Patch 01 & 01.1: Initial Setup, Reset & Health State
+  const [isSetupWizardOpen, setIsSetupWizardOpen] = useState<boolean>(false);
+  const [systemResetReports, setSystemResetReports] = useState<SystemResetReport[]>(() =>
+    LocalStorageManager.getSystemResetReports()
+  );
+  const [systemHealthReport, setSystemHealthReport] = useState<SystemHealthReport | null>(null);
+
+  const validateResetSafetyChecks = (): SystemSafetyCheckResult => {
+    return LocalStorageManager.validateResetSafetyChecks(activeClinicId);
+  };
+
+  const restoreSystemBackup = (backupId: string): boolean => {
+    const ok = LocalStorageManager.restoreSystemBackup(backupId);
+    if (ok) {
+      setPatients(LocalStorageManager.getPatients());
+      setQueue(LocalStorageManager.getQueue());
+      setMedicalRecords(LocalStorageManager.getMedicalRecords());
+      setTransactions(LocalStorageManager.getTransactions());
+      setInventory(LocalStorageManager.getInventory());
+      setPatientOrders(LocalStorageManager.getPatientOrders());
+      setShiftHistories(LocalStorageManager.getShiftHistories());
+      setShiftHandovers(LocalStorageManager.getShiftHandovers());
+      setStaffList(LocalStorageManager.getStaff());
+      setCatalogItems(LocalStorageManager.getCatalogItems());
+      addNotification(`نسخه پشتیبان (شناسه: ${backupId}) با موفقیت بازیابی شد.`, 'success');
+    }
+    return ok;
+  };
+
+  const performSystemHealthCheck = (): SystemHealthReport => {
+    const report = LocalStorageManager.performSystemHealthCheck();
+    setSystemHealthReport(report);
+    return report;
+  };
+
+  const loadDemoData = (): { patientsCount: number; visitsCount: number; transactionsCount: number } => {
+    const res = LocalStorageManager.loadDemoData();
+    setPatients(LocalStorageManager.getPatients());
+    setMedicalRecords(LocalStorageManager.getMedicalRecords());
+    setTransactions(LocalStorageManager.getTransactions());
+    addNotification('داده‌های آزمایشی درمانگاه با موفقیت بارگذاری گردیدند.', 'success');
+    return res;
+  };
 
   // Patch 02.6: Catalog & Patient Order State
   const [catalogItems, setCatalogItems] = useState<CatalogItem[]>([]);
@@ -1544,6 +1611,73 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setReportExportLogs((prev) => [newLog, ...prev]);
   };
 
+  // System Patch 01 & 01.1: Execute Safe Data Reset with Safety Verification
+  const executeSystemReset = async (
+    options: SystemResetOptions,
+    adminPassword: string
+  ): Promise<{ success: boolean; report?: SystemResetReport; error?: string }> => {
+    // 1. Evaluate Safety Checklist
+    const safety = validateResetSafetyChecks();
+    if (!safety.isPassed) {
+      return {
+        success: false,
+        error: `توقف پاکسازی به علت عدم قبولی چک ایمنی: ${safety.failureReasons.join(' - ')}`,
+      };
+    }
+
+    const activeStaff = staffList.find((s) => s.id === activeUserId) || staffList[0];
+
+    // Check credential
+    const credentials = LocalStorageManager.getUserCredentials();
+    const cred = credentials.find((c) => c.userId === activeStaff?.id);
+
+    if (cred && cred.passwordHash !== adminPassword) {
+      return { success: false, error: 'رمز عبور مدیر سیستم نادرست می‌باشد.' };
+    }
+
+    try {
+      const report = LocalStorageManager.performSafeDataReset(
+        options,
+        { fullName: `${activeStaff.firstName} ${activeStaff.lastName}`, role: activeStaff.role },
+        activeClinicId
+      );
+
+      // Clear operational context states
+      setPatients([]);
+      setQueue([]);
+      setMedicalRecords([]);
+      setTransactions([]);
+      setInventory([]);
+      setPatientOrders([]);
+      setShiftHistories([]);
+      setShiftHandovers([]);
+      setShiftAuditLogs([]);
+      setAuditLogs([]);
+      setUserManagementLogs([]);
+      setNotifications([]);
+      setSystemResetReports(LocalStorageManager.getSystemResetReports());
+
+      if (options.deleteUsers) {
+        setStaffList(LocalStorageManager.getStaff());
+      }
+      if (options.deleteMedicines || options.deleteServices) {
+        setCatalogItems(LocalStorageManager.getCatalogItems());
+      }
+
+      addNotification(
+        `پشتیبان گیری با شناسه ${report.backupRefId} ذخیره گردید و داده‌های عملیاتی پاکسازی شدند.`,
+        'success'
+      );
+
+      // Automatically trigger setup wizard
+      setIsSetupWizardOpen(true);
+
+      return { success: true, report };
+    } catch (err: any) {
+      return { success: false, error: err?.message || 'خطا در اجرای فرآیند پاکسازی داده‌های کلینیک.' };
+    }
+  };
+
   return (
     <ClinicContext.Provider
       value={{
@@ -1646,6 +1780,18 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         toggleScheduledReport,
         reportExportLogs,
         logReportExport,
+
+        // System Patch 01 & 01.1: Initial Setup, Reset & First-Run
+        isSetupWizardOpen,
+        setIsSetupWizardOpen,
+        systemResetReports,
+        executeSystemReset,
+        validateResetSafetyChecks,
+        restoreSystemBackup,
+        performSystemHealthCheck,
+        loadDemoData,
+        systemHealthReport,
+        setSystemHealthReport,
 
         refreshData: loadDataForActiveClinic,
       }}
