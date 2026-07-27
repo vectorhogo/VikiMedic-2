@@ -1,0 +1,389 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --font-persian: 'IRANYekanX', 'Vazirmatn', 'IRANSansX', 'Noto Sans Arabic', Tahoma, sans-serif;
+  }
+
+  body {
+    font-family: var(--font-persian);
+    letter-spacing: -0.01em;
+    font-feature-settings: "tnum" 1, "lnum" 1, "ss01" 1;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* High-Precision Tabular Numerals for Financial, Medical & Dashboard Readability */
+  .tabular-nums,
+  .font-mono,
+  .numeric-val,
+  .currency-val,
+  td,
+  th,
+  input[type="number"] {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-feature-settings: "tnum" 1, "lnum" 1, "ss01" 1;
+    letter-spacing: 0.02em;
+  }
+}
+
+/* Theme definition CSS classes */
+
+/* 1. Default Medical Theme */
+.theme-default {
+  --bg-app: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-card: #ffffff;
+  --bg-sidebar: #0f172a;
+  --bg-sidebar-hover: #1e293b;
+  --text-main: #0f172a;
+  --text-muted: #64748b;
+  --border-subtle: #e2e8f0;
+  --accent-primary: #0284c7;
+  --accent-secondary: #0d9488;
+  --accent-light: #e0f2fe;
+  --header-bg: #ffffff;
+  --titlebar-bg: #0f172a;
+  --shadow-sm: 0 1px 2px 0 rgb(0 0 0 / 0.05);
+  --shadow-md: 0 4px 6px -1px rgb(0 0 0 / 0.07), 0 2px 4px -2px rgb(0 0 0 / 0.05);
+  --status-success: #10b981;
+  --status-warning: #f59e0b;
+  --status-danger: #ef4444;
+}
+
+/* 2. Sophisticated Dark Theme */
+.theme-dark {
+  --bg-app: #09090b;
+  --bg-surface: #121215;
+  --bg-card: #18181b;
+  --bg-sidebar: #0d0d11;
+  --bg-sidebar-hover: #1f1f24;
+  --text-main: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --border-subtle: #27272a;
+  --accent-primary: #a855f7;
+  --accent-secondary: #8b5cf6;
+  --accent-light: rgba(168, 85, 247, 0.12);
+  --header-bg: #121215;
+  --titlebar-bg: #09090b;
+  --shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 20px 0 rgba(0, 0, 0, 0.6), 0 0 15px 0 rgba(168, 85, 247, 0.05);
+  --status-success: #10b981;
+  --status-warning: #f59e0b;
+  --status-danger: #ef4444;
+}
+
+/* 3. Hidden Rose Luxe Theme */
+.theme-rose {
+  --bg-app: #fff5f7;
+  --bg-surface: #ffffff;
+  --bg-card: rgba(255, 255, 255, 0.85);
+  --bg-sidebar: #2a111a;
+  --bg-sidebar-hover: #3d1b27;
+  --text-main: #33101d;
+  --text-muted: #885869;
+  --border-subtle: #fbcfe8;
+  --accent-primary: #e11d48;
+  --accent-secondary: #be185d;
+  --accent-light: #ffe4e6;
+  --header-bg: #ffffff;
+  --titlebar-bg: #2a111a;
+  --shadow-sm: 0 2px 4px 0 rgba(225, 29, 72, 0.06);
+  --shadow-md: 0 8px 16px -2px rgba(225, 29, 72, 0.1);
+  --status-success: #10b981;
+  --status-warning: #f59e0b;
+  --status-danger: #e11d48;
+}
+
+/* Custom Scrollbars for Native Desktop feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(148, 163, 184, 0.3);
+  border-radius: 9999px;
+  transition: background 180ms ease;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(148, 163, 184, 0.5);
+}
+
+/* ============================================================ */
+/* PREMIUM MOTION & INTERACTION DESIGN (PATCH 01) */
+/* ============================================================ */
+
+/* 1. BUTTON HOVER & PRESS INTERACTIONS */
+button, .interactive-btn {
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              background-color 200ms ease,
+              border-color 200ms ease;
+  will-change: transform, box-shadow;
+}
+
+button:hover:not(:disabled), .interactive-btn:hover:not(:disabled) {
+  transform: translateY(-1px) scale(1.01);
+  box-shadow: 0 4px 12px -2px rgba(0, 0, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+}
+
+button:active:not(:disabled), .interactive-btn:active:not(:disabled) {
+  transform: translateY(1px) scale(0.98);
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  transition-duration: 60ms;
+}
+
+/* Button Icon Micro-Animations */
+button:hover .icon-rotate-hover {
+  transform: rotate(6deg);
+  transition: transform 200ms ease;
+}
+
+button:hover .icon-slide-hover {
+  transform: translateX(-2px);
+  transition: transform 200ms ease;
+}
+
+button:hover .icon-expand-hover {
+  transform: scale(1.12);
+  transition: transform 200ms ease;
+}
+
+/* 2. CARD HOVER & ELEVATION EFFECTS */
+.hover-card {
+  transition: transform 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              box-shadow 200ms cubic-bezier(0.16, 1, 0.3, 1),
+              border-color 200ms ease;
+  cursor: pointer;
+}
+
+.hover-card:hover {
+  transform: translateY(-2px) scale(1.008);
+  box-shadow: 0 12px 24px -6px rgba(0, 0, 0, 0.07), 0 4px 8px -2px rgba(0, 0, 0, 0.04);
+}
+
+/* 3. SEGMENTED ANIMATED BORDER FOR ENTERPRISE INFO CARDS */
+.animated-border-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.animated-border-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  padding: 1px;
+  background: linear-gradient(90deg, transparent, rgba(59, 130, 246, 0.4), transparent);
+  -webkit-mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  mask: linear-gradient(#fff 0 0) content-box, linear-gradient(#fff 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 250ms ease;
+  pointer-events: none;
+}
+
+.animated-border-card:hover::before {
+  opacity: 1;
+  animation: borderGlowMove 3s linear infinite;
+}
+
+@keyframes borderGlowMove {
+  0% {
+    background-position: 0% 0%;
+  }
+  100% {
+    background-position: 200% 0%;
+  }
+}
+
+/* 4. TABLE ROW INTERACTION */
+tr.interactive-row, tr.hover-row {
+  transition: background-color 180ms ease, border-color 180ms ease;
+}
+
+tr.interactive-row:hover, tr.hover-row:hover {
+  background-color: rgba(59, 130, 246, 0.04);
+  cursor: pointer;
+}
+
+/* 5. INPUT FOCUS STATES */
+input, select, textarea {
+  transition: border-color 180ms ease, box-shadow 180ms ease, background-color 180ms ease;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.15) !important;
+}
+
+/* 6. SKELETON LOADING & SHIMMER EFFECT */
+.skeleton-loader {
+  background: linear-gradient(90deg, rgba(226, 232, 240, 0.4) 25%, rgba(203, 213, 225, 0.6) 50%, rgba(226, 232, 240, 0.4) 75%);
+  background-size: 200% 100%;
+  animation: shimmerLoading 1.5s infinite;
+  border-radius: 0.5rem;
+}
+
+.theme-dark .skeleton-loader {
+  background: linear-gradient(90deg, rgba(39, 39, 42, 0.4) 25%, rgba(63, 63, 70, 0.6) 50%, rgba(39, 39, 42, 0.4) 75%);
+  background-size: 200% 100%;
+}
+
+@keyframes shimmerLoading {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+/* 7. PAGE FADE TRANSITION (MAX 250ms) */
+.page-fade-in {
+  animation: pageFadeIn 220ms cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes pageFadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* 8. SIDEBAR ITEM HIGHLIGHT & ANIMATED INDICATOR */
+.sidebar-item {
+  position: relative;
+  transition: background-color 180ms ease, color 180ms ease;
+}
+
+.sidebar-item::after {
+  content: '';
+  position: absolute;
+  right: 0;
+  top: 20%;
+  bottom: 20%;
+  width: 3px;
+  background-color: #3b82f6;
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+  transform: scaleY(0);
+  transition: transform 180ms cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.sidebar-item.active::after, .sidebar-item:hover::after {
+  transform: scaleY(1);
+}
+
+/* Glassmorphism utility */
+.glass-panel {
+  background: var(--bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+/* Desktop native window animations and utilities */
+@media print {
+  body {
+    background: white !important;
+    color: black !important;
+    font-size: 12pt;
+  }
+  .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  .print-page-break {
+    page-break-after: always;
+  }
+}
+
+.print-only {
+  display: none;
+}
+
+/* High-Precision Numeric Readability Utilities */
+.financial-amount,
+.currency-val {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1, "ss01" 1;
+  letter-spacing: 0.03em;
+  word-spacing: 0.06em;
+  font-weight: 800;
+}
+
+.stat-digit,
+.dashboard-stat-num {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1, "ss01" 1;
+  letter-spacing: 0.025em;
+  font-weight: 900;
+}
+
+.invoice-number,
+.patient-file-num,
+.queue-number {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: "tnum" 1, "lnum" 1;
+  letter-spacing: 0.04em;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace, var(--font-persian);
+}
+
+/* ============================================================
+   UI Fix Patch 03: Centralized Z-Index Hierarchy & Responsive Overlay Engine
+   ============================================================ */
+.z-dropdown { z-index: 1000 !important; }
+.z-sticky-header { z-index: 1020 !important; }
+.z-notification-panel { z-index: 2000 !important; }
+.z-drawer-overlay { z-index: 3000 !important; }
+.z-modal-backdrop { z-index: 4000 !important; }
+.z-modal-dialog { z-index: 4010 !important; }
+.z-toast-notification { z-index: 5000 !important; }
+.z-tooltip-overlay { z-index: 6000 !important; }
+.z-screen-lock-overlay { z-index: 9999 !important; }
+
+/* Responsive Modal Viewport Constraints */
+.responsive-modal-container {
+  max-height: 90vh;
+  max-width: 1200px;
+  width: 95vw;
+}
+
+@media (min-width: 900px) {
+  .responsive-modal-container {
+    width: 90vw;
+    min-width: 850px;
+  }
+}
+
+.sticky-modal-header {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  backdrop-filter: blur(12px);
+}
+
+.sticky-modal-footer {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  backdrop-filter: blur(12px);
+}
+
+.modal-content-scrollable {
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+

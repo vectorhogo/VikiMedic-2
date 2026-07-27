@@ -1,0 +1,6 @@
+{
+  "name": "VikiMedic",
+  "description": "VikiMedic v2 — Commercial-grade Persian Multi-Clinic Management System with Windows Desktop UI, clean architecture, role-based access, and 3 themes.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
