@@ -263,7 +263,7 @@ export const OrderReceiptPrintModal: React.FC = () => {
             transform: `scale(${scale})`,
             transformOrigin: 'top center',
           }}
-          className={`bg-white text-slate-900 font-sans shadow-2xl transition-all duration-200 rounded-2xl overflow-hidden print:shadow-none print:transform-none print:w-full print:rounded-none break-words ${getPageWidthClass()} ${
+          className={`bg-white text-slate-900 font-sans shadow-2xl transition-all duration-200 rounded-2xl overflow-hidden print:shadow-none print:transform-none print:w-full print:rounded-none break-words print-paper-${pageSize} ${getPageWidthClass()} ${
             isThermal ? 'p-3 space-y-3 text-[11px]' : 'p-6 sm:p-8 space-y-5 text-xs'
           }`}
         >

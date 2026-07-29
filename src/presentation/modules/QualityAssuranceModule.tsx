@@ -28,9 +28,11 @@ import {
   PrinterIcon,
 } from 'lucide-react';
 import { useClinic } from '../../application/ClinicContext';
+import { useTheme } from '../ThemeContext';
 
 export const QualityAssuranceModule: React.FC = () => {
-  const { theme, setTheme, addNotification } = useClinic();
+  const { addNotification } = useClinic();
+  const { theme, setTheme } = useTheme();
   const [activeTab, setActiveTab] = useState<'stability' | 'persian_score' | 'desktop_native' | 'theme_audit' | 'gatekeeper'>('stability');
 
   // Stability Audit State
@@ -416,11 +418,11 @@ export const QualityAssuranceModule: React.FC = () => {
           <div className="flex items-center gap-3 text-xs">
             <button
               onClick={() => {
-                setTheme('medical_white');
+                setTheme('theme-default');
                 addNotification('تم سفید پزشکی فعال گردید.', 'info');
               }}
               className={`px-4 py-2.5 rounded-xl font-bold border transition ${
-                theme === 'medical_white' ? 'bg-blue-600 text-white border-blue-500 shadow' : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-main)]'
+                theme === 'theme-default' ? 'bg-blue-600 text-white border-blue-500 shadow' : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-main)]'
               }`}
             >
               تم اصلی (Medical White)
@@ -428,11 +430,11 @@ export const QualityAssuranceModule: React.FC = () => {
 
             <button
               onClick={() => {
-                setTheme('dark_eyesafe');
+                setTheme('theme-dark');
                 addNotification('تم تاریک ضد خستگی فعال گردید.', 'info');
               }}
               className={`px-4 py-2.5 rounded-xl font-bold border transition ${
-                theme === 'dark_eyesafe' ? 'bg-slate-800 text-white border-slate-600 shadow' : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-main)]'
+                theme === 'theme-dark' ? 'bg-slate-800 text-white border-slate-600 shadow' : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-main)]'
               }`}
             >
               تم تاریک (Dark Eyesafe)
@@ -440,11 +442,11 @@ export const QualityAssuranceModule: React.FC = () => {
 
             <button
               onClick={() => {
-                setTheme('rose_luxe');
+                setTheme('theme-rose');
                 addNotification('تم رز لوکس (کلینیک زیبایی) فعال گردید.', 'info');
               }}
               className={`px-4 py-2.5 rounded-xl font-bold border transition ${
-                theme === 'rose_luxe' ? 'bg-rose-600 text-white border-rose-500 shadow' : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-main)]'
+                theme === 'theme-rose' ? 'bg-rose-600 text-white border-rose-500 shadow' : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-main)]'
               }`}
             >
               تم رز لوکس (Rose Luxe - Beauty)

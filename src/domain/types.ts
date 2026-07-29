@@ -765,7 +765,9 @@ export type AuthActionType =
   | 'SCREEN_LOCK'
   | 'SCREEN_UNLOCK'
   | 'PASSWORD_CHANGE'
-  | 'CREDENTIAL_CREATED';
+  | 'CREDENTIAL_CREATED'
+  | 'SETTINGS_UPDATE'
+  | 'INITIAL_SETUP_RESET';
 
 export interface AuthActivityLog {
   id: string;

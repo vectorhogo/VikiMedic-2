@@ -292,19 +292,106 @@ input:focus, select:focus, textarea:focus {
 
 /* Desktop native window animations and utilities */
 @media print {
-  body {
-    background: white !important;
-    color: black !important;
-    font-size: 12pt;
+  html, body {
+    background: #ffffff !important;
+    color: #000000 !important;
+    font-size: 11pt !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    overflow: visible !important;
+    height: auto !important;
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
   }
-  .no-print {
+
+  /* Hide all application UI elements when printing */
+  header,
+  nav,
+  aside,
+  main,
+  footer,
+  .no-print,
+  .print\:hidden,
+  .z-toast-notification,
+  .viki-assistant-floating,
+  .z-dropdown,
+  .z-sticky-header,
+  .z-modal-backdrop,
+  #windows-command-bar,
+  #desktop-sidebar,
+  #desktop-titlebar,
+  #status-bar {
     display: none !important;
   }
+
+  /* Modal backdrop reset for print */
+  .fixed.inset-0 {
+    position: static !important;
+    inset: auto !important;
+    background: transparent !important;
+    display: block !important;
+    padding: 0 !important;
+  }
+
   .print-only {
     display: block !important;
   }
+
   .print-page-break {
     page-break-after: always;
+  }
+
+  /* Printable Invoice / Receipt Styling */
+  #printable-order-receipt,
+  #printable-official-invoice,
+  #printable-prescription {
+    display: block !important;
+    visibility: visible !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    margin: 0 auto !important;
+    transform: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  #printable-order-receipt.print-paper-58mm,
+  #printable-official-invoice.print-paper-58mm {
+    width: 58mm !important;
+    max-width: 58mm !important;
+    padding: 4px !important;
+    font-size: 8pt !important;
+  }
+
+  #printable-order-receipt.print-paper-80mm,
+  #printable-official-invoice.print-paper-80mm {
+    width: 80mm !important;
+    max-width: 80mm !important;
+    padding: 6px !important;
+    font-size: 9pt !important;
+  }
+
+  #printable-order-receipt.print-paper-A5,
+  #printable-official-invoice.print-paper-A5 {
+    width: 148mm !important;
+    max-width: 148mm !important;
+    padding: 12px !important;
+    font-size: 10pt !important;
+  }
+
+  #printable-order-receipt.print-paper-A4,
+  #printable-official-invoice.print-paper-A4 {
+    width: 210mm !important;
+    max-width: 210mm !important;
+    padding: 18px !important;
+    font-size: 11pt !important;
+  }
+
+  @page {
+    margin: 4mm;
+    size: auto;
   }
 }
 
@@ -385,5 +472,99 @@ input:focus, select:focus, textarea:focus {
   overscroll-behavior: contain;
   -webkit-overflow-scrolling: touch;
 }
+
+/* ============================================================ */
+/* PERFORMANCE PATCH 01: ADAPTIVE PERFORMANCE RENDERING ENGINE */
+/* ============================================================ */
+
+/* 1. BALANCED PERFORMANCE MODE OVERRIDES */
+.perf-effective-balanced {
+  /* Moderate Backdrop Blur */
+  --backdrop-blur-val: 4px;
+}
+
+.perf-effective-balanced .glass-panel,
+.perf-effective-balanced .sticky-modal-header,
+.perf-effective-balanced .sticky-modal-footer {
+  backdrop-filter: blur(4px) !important;
+  -webkit-backdrop-filter: blur(4px) !important;
+}
+
+.perf-effective-balanced button:hover:not(:disabled),
+.perf-effective-balanced .interactive-btn:hover:not(:disabled),
+.perf-effective-balanced .hover-card:hover {
+  transform: translateY(-1px) scale(1.002) !important;
+  transition-duration: 120ms !important;
+}
+
+/* 2. HIGH PERFORMANCE MODE OVERRIDES (OPTIMIZED FOR LOW-END COMPUTERS) */
+.perf-effective-performance {
+  /* Disable heavy backdrop blur filters */
+  --backdrop-blur-val: 0px;
+}
+
+/* Reduce blur intensity & glass transparency to solid high-contrast panels */
+.perf-effective-performance .glass-panel,
+.perf-effective-performance .sticky-modal-header,
+.perf-effective-performance .sticky-modal-footer {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  background-color: var(--bg-surface) !important;
+}
+
+/* Reduce animation duration and hover transforms */
+.perf-effective-performance button,
+.perf-effective-performance .interactive-btn,
+.perf-effective-performance .hover-card,
+.perf-effective-performance .sidebar-item,
+.perf-effective-performance input,
+.perf-effective-performance select,
+.perf-effective-performance textarea {
+  transition-duration: 0.05s !important;
+  will-change: auto !important;
+}
+
+.perf-effective-performance button:hover:not(:disabled),
+.perf-effective-performance .interactive-btn:hover:not(:disabled),
+.perf-effective-performance .hover-card:hover {
+  transform: none !important;
+  box-shadow: none !important;
+}
+
+/* Disable unnecessary shadows & glowing drop-shadows */
+.perf-effective-performance .shadow-sm,
+.perf-effective-performance .shadow-md,
+.perf-effective-performance .shadow-lg,
+.perf-effective-performance .shadow-2xl {
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.08) !important;
+}
+
+/* Disable glow effects & animated border keyframes */
+.perf-effective-performance .animated-border-card::before {
+  display: none !important;
+  animation: none !important;
+}
+
+/* Disable animated gradients & shimmer loading loops */
+.perf-effective-performance .skeleton-loader {
+  animation: none !important;
+  background: var(--border-subtle) !important;
+  opacity: 0.8;
+}
+
+.perf-effective-performance .page-fade-in {
+  animation: none !important;
+}
+
+/* HIGH-QUALITY TYPOGRAPHY PRESERVATION: NEVER REDUCE TEXT QUALITY */
+.perf-effective-performance body,
+.perf-effective-performance *,
+.perf-effective-balanced body,
+.perf-effective-balanced * {
+  -webkit-font-smoothing: antialiased !important;
+  -moz-osx-font-smoothing: grayscale !important;
+  text-rendering: optimizeLegibility !important;
+}
+
 
 

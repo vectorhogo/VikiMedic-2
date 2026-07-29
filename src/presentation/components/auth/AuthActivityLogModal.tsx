@@ -97,6 +97,16 @@ export const AuthActivityLogModal: React.FC<AuthActivityLogModalProps> = ({ isOp
       color: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
       icon: <UserCheck className="w-3.5 h-3.5" />,
     },
+    SETTINGS_UPDATE: {
+      label: 'تغییر تنظیمات',
+      color: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+      icon: <ShieldCheck className="w-3.5 h-3.5" />,
+    },
+    INITIAL_SETUP_RESET: {
+      label: 'بازنشانی اولیه داده‌ها',
+      color: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+      icon: <AlertTriangle className="w-3.5 h-3.5" />,
+    },
   };
 
   return (

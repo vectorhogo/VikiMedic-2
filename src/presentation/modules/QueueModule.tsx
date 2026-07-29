@@ -1,5 +1,6 @@
 /**
  * VikiMedic v2 - Queue & Reception Module
+ * Reception Workflow Patch - Reception History & Queue Rule
  * Clean Architecture Layer: Presentation
  */
 
@@ -14,10 +15,14 @@ import {
   Stethoscope,
   Volume2,
   Receipt,
+  History,
+  Users,
 } from 'lucide-react';
 import { useClinic } from '../../application/ClinicContext';
 import { QueueItem } from '../../domain/types';
 import { PatientOrderWorkflowModal } from '../components/orders/PatientOrderWorkflowModal';
+import { ReceptionHistoryTab } from '../components/reception/ReceptionHistoryTab';
+import { PatientTimelineSection } from '../components/reception/PatientTimelineSection';
 
 export const QueueModule: React.FC = () => {
   const {
@@ -30,12 +35,20 @@ export const QueueModule: React.FC = () => {
     activeShiftConfig,
   } = useClinic();
 
-  const [activeTab, setActiveTab] = useState<'ALL' | 'WAITING' | 'IN_CONSULTATION' | 'COMPLETED'>('ALL');
+  // Top Level Main Tab: Waiting Queue vs Reception History vs Patient Timeline
+  const [mainTab, setMainTab] = useState<'WAITING_QUEUE' | 'RECEPTION_HISTORY' | 'PATIENT_TIMELINE'>('WAITING_QUEUE');
+
+  // Sub Tab inside Waiting Queue
+  const [queueSubTab, setQueueSubTab] = useState<'ALL_ACTIVE' | 'WAITING' | 'IN_CONSULTATION'>('ALL_ACTIVE');
+
   const [selectedOrderPatientId, setSelectedOrderPatientId] = useState<string | null>(null);
 
-  const filteredQueue = queue.filter((q) => {
-    if (activeTab === 'ALL') return true;
-    return q.status === activeTab;
+  // Filter active queue items ONLY (paid/completed patients are removed from Waiting Queue and moved to Reception History)
+  const activeQueue = queue.filter((q) => q.status === 'WAITING' || q.status === 'IN_CONSULTATION');
+
+  const filteredQueue = activeQueue.filter((q) => {
+    if (queueSubTab === 'ALL_ACTIVE') return true;
+    return q.status === queueSubTab;
   });
 
   const handleCallPatient = (item: QueueItem) => {
@@ -44,7 +57,7 @@ export const QueueModule: React.FC = () => {
   };
 
   return (
-    <div className="p-6 space-y-6 text-[var(--text-main)] max-w-7xl mx-auto animate-in fade-in duration-150">
+    <div className="p-6 space-y-6 text-[var(--text-main)] max-w-7xl mx-auto animate-in fade-in duration-150 dir-rtl">
       {/* Title & Action Bar */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-subtle)] shadow-sm">
         <div className="flex items-center gap-3">
@@ -52,9 +65,9 @@ export const QueueModule: React.FC = () => {
             <Clock className="w-5 h-5" />
           </div>
           <div>
-            <h1 className="text-lg font-bold">صف انتظار و نوبت‌دهی پذیرش سالن کلینیک</h1>
+            <h1 className="text-lg font-bold">مدیریت پذیرش، صف انتظار و تاریخچه نوبت‌ها</h1>
             <p className="text-xs text-[var(--text-muted)] mt-0.5">
-              مدیریت و فراخوان نوبت‌های حضوری بیماران در انتظار معاینه
+              مدیریت نوبت‌های فعال سالن انتظار و آرشیو کامل پذیرش‌های تسویه‌شده کلینیک
             </p>
           </div>
         </div>
@@ -90,185 +103,225 @@ export const QueueModule: React.FC = () => {
         </div>
       )}
 
-      {/* Queue Navigation Tabs */}
-      <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] pb-2 text-xs font-bold">
+      {/* Top Level Main Navigation Tabs */}
+      <div className="flex items-center gap-3 border-b border-[var(--border-subtle)] pb-3 text-xs font-bold">
         <button
-          onClick={() => setActiveTab('ALL')}
-          className={`px-4 py-2 rounded-xl transition ${
-            activeTab === 'ALL'
-              ? 'bg-blue-600 text-white shadow'
-              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)]'
+          onClick={() => setMainTab('WAITING_QUEUE')}
+          className={`px-5 py-2.5 rounded-xl transition flex items-center gap-2 ${
+            mainTab === 'WAITING_QUEUE'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'bg-[var(--bg-surface)] hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)] border border-[var(--border-subtle)]'
           }`}
         >
-          همه نوبت‌ها ({queue.length})
+          <Users className="w-4 h-4" />
+          <span>صف انتظار سالن ({activeQueue.length})</span>
         </button>
+
         <button
-          onClick={() => setActiveTab('WAITING')}
-          className={`px-4 py-2 rounded-xl transition ${
-            activeTab === 'WAITING'
-              ? 'bg-amber-500 text-white shadow'
-              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)]'
+          onClick={() => setMainTab('RECEPTION_HISTORY')}
+          className={`px-5 py-2.5 rounded-xl transition flex items-center gap-2 ${
+            mainTab === 'RECEPTION_HISTORY'
+              ? 'bg-emerald-600 text-white shadow-md'
+              : 'bg-[var(--bg-surface)] hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)] border border-[var(--border-subtle)]'
           }`}
         >
-          در انتظار ({queue.filter((q) => q.status === 'WAITING').length})
+          <History className="w-4 h-4" />
+          <span>تاریخچه پذیرش‌ها (Reception History)</span>
         </button>
+
         <button
-          onClick={() => setActiveTab('IN_CONSULTATION')}
-          className={`px-4 py-2 rounded-xl transition ${
-            activeTab === 'IN_CONSULTATION'
-              ? 'bg-blue-600 text-white shadow'
-              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)]'
+          onClick={() => setMainTab('PATIENT_TIMELINE')}
+          className={`px-5 py-2.5 rounded-xl transition flex items-center gap-2 ${
+            mainTab === 'PATIENT_TIMELINE'
+              ? 'bg-indigo-600 text-white shadow-md'
+              : 'bg-[var(--bg-surface)] hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)] border border-[var(--border-subtle)]'
           }`}
         >
-          در حال معاینه ({queue.filter((q) => q.status === 'IN_CONSULTATION').length})
-        </button>
-        <button
-          onClick={() => setActiveTab('COMPLETED')}
-          className={`px-4 py-2 rounded-xl transition ${
-            activeTab === 'COMPLETED'
-              ? 'bg-emerald-600 text-white shadow'
-              : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)]'
-          }`}
-        >
-          تکمیل شده ({queue.filter((q) => q.status === 'COMPLETED').length})
+          <Clock className="w-4 h-4" />
+          <span>زمان‌بندی و سیر پذیرش (Patient Timeline)</span>
         </button>
       </div>
 
-      {/* Queue Grid Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {filteredQueue.length === 0 ? (
-          <div className="col-span-full p-12 text-center text-slate-400 bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)]">
-            هیچ نوبتی در این بخش وجود ندارد.
-          </div>
-        ) : (
-          filteredQueue.map((item) => (
-            <div
-              key={item.id}
-              onContextMenu={(e) => {
-                e.preventDefault();
-                showContextMenu(e.clientX, e.clientY, 'queue', item);
-              }}
-              className={`p-5 rounded-2xl border bg-[var(--bg-surface)] shadow-sm space-y-3 transition relative overflow-hidden ${
-                item.status === 'IN_CONSULTATION'
-                  ? 'border-blue-500 ring-2 ring-blue-500/20'
-                  : 'border-[var(--border-subtle)]'
+      {/* ============================================================ */}
+      {/* TAB 1: WAITING QUEUE (ACTIVE PATIENTS ONLY) */}
+      {/* ============================================================ */}
+      {mainTab === 'WAITING_QUEUE' && (
+        <div className="space-y-6 animate-in fade-in duration-150">
+          {/* Sub Filters for Waiting Queue */}
+          <div className="flex items-center gap-2 text-xs font-bold">
+            <button
+              onClick={() => setQueueSubTab('ALL_ACTIVE')}
+              className={`px-3.5 py-1.5 rounded-lg transition ${
+                queueSubTab === 'ALL_ACTIVE'
+                  ? 'bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-900 shadow-xs'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-subtle)] hover:bg-slate-100 dark:hover:bg-slate-800'
               }`}
             >
-              {/* Queue Header */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black font-mono text-sm shadow">
-                    #{item.queueNumber}
-                  </span>
-                  <div>
-                    <h3 className="font-bold text-sm">{item.patientName}</h3>
-                    <p className="text-[10px] text-[var(--text-muted)] font-mono">پرونده: {item.fileNumber}</p>
-                  </div>
-                </div>
+              همه فعالان ({activeQueue.length})
+            </button>
+            <button
+              onClick={() => setQueueSubTab('WAITING')}
+              className={`px-3.5 py-1.5 rounded-lg transition ${
+                queueSubTab === 'WAITING'
+                  ? 'bg-amber-500 text-white shadow-xs'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-subtle)] hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              در انتظار سالن ({activeQueue.filter((q) => q.status === 'WAITING').length})
+            </button>
+            <button
+              onClick={() => setQueueSubTab('IN_CONSULTATION')}
+              className={`px-3.5 py-1.5 rounded-lg transition ${
+                queueSubTab === 'IN_CONSULTATION'
+                  ? 'bg-blue-600 text-white shadow-xs'
+                  : 'bg-[var(--bg-surface)] text-[var(--text-muted)] border border-[var(--border-subtle)] hover:bg-slate-100 dark:hover:bg-slate-800'
+              }`}
+            >
+              در حال معاینه ({activeQueue.filter((q) => q.status === 'IN_CONSULTATION').length})
+            </button>
+          </div>
 
-                <span className="font-mono text-xs text-[var(--text-muted)] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
-                  {item.scheduledTime}
-                </span>
+          {/* Queue Grid Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {filteredQueue.length === 0 ? (
+              <div className="col-span-full p-12 text-center text-slate-400 bg-[var(--bg-surface)] rounded-2xl border border-[var(--border-subtle)] space-y-1">
+                <p className="font-bold">هیچ بيماری در این بخش از صف انتظار وجود ندارد.</p>
+                <p className="text-[11px] text-[var(--text-muted)]">بیماران تسویه‌شده به بخش «تاریخچه پذیرش‌ها» منتقل شده‌اند.</p>
               </div>
-
-              {/* Doctor and Visit Notes */}
-              <div className="text-xs space-y-1.5 p-2.5 rounded-xl bg-[var(--bg-app)] border border-[var(--border-subtle)]">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <span className="text-[var(--text-muted)]">پزشک / سرویس: </span>
-                    <span className="font-bold">{item.doctorName}</span>
-                  </div>
-
-                  {item.patientType === 'EXTERNAL_DOCTOR' ? (
-                    <span className="px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300 text-[10px] font-bold rounded-md">
-                      نسخه خارج کلینیک
-                    </span>
-                  ) : item.visitMode === 'DIRECT_SERVICE' || item.patientType === 'NO_DOCTOR' ? (
-                    <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 text-[10px] font-bold rounded-md">
-                      خدمت مستقیم پرستاری
-                    </span>
-                  ) : (
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300 text-[10px] font-bold rounded-md">
-                      ویزیت پزشک
-                    </span>
-                  )}
-                </div>
-
-                {item.externalDoctorDetails && (
-                  <div className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 p-1.5 rounded-lg border border-amber-200/60">
-                    پزشک صادرکننده: {item.externalDoctorDetails.doctorName || 'نامشخص'} | مرکز: {item.externalDoctorDetails.clinicName || 'سایر'}
-                  </div>
-                )}
-
-                {item.directServicesList && item.directServicesList.length > 0 && (
-                  <div className="flex flex-wrap gap-1 pt-1">
-                    {item.directServicesList.map((srv, idx) => (
-                      <span key={idx} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 text-[9px] font-bold rounded">
-                        {srv}
+            ) : (
+              filteredQueue.map((item) => (
+                <div
+                  key={item.id}
+                  onContextMenu={(e) => {
+                    e.preventDefault();
+                    showContextMenu(e.clientX, e.clientY, 'queue', item);
+                  }}
+                  className={`p-5 rounded-2xl border bg-[var(--bg-surface)] shadow-sm space-y-3 transition relative overflow-hidden ${
+                    item.status === 'IN_CONSULTATION'
+                      ? 'border-blue-500 ring-2 ring-blue-500/20'
+                      : 'border-[var(--border-subtle)]'
+                  }`}
+                >
+                  {/* Queue Header */}
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <span className="w-8 h-8 rounded-xl bg-blue-600 text-white flex items-center justify-center font-black font-mono text-sm shadow">
+                        #{item.queueNumber}
                       </span>
-                    ))}
-                  </div>
-                )}
+                      <div>
+                        <h3 className="font-bold text-sm">{item.patientName}</h3>
+                        <p className="text-[10px] text-[var(--text-muted)] font-mono">پرونده: {item.fileNumber}</p>
+                      </div>
+                    </div>
 
-                {item.notes && (
-                  <div className="text-[11px] text-[var(--text-muted)] truncate pt-0.5">
-                    ملاحظات: {item.notes}
+                    <span className="font-mono text-xs text-[var(--text-muted)] bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded">
+                      {item.scheduledTime}
+                    </span>
                   </div>
-                )}
-              </div>
 
-              {/* Action Buttons */}
-              <div className="pt-2 flex flex-col gap-2 border-t border-[var(--border-subtle)]">
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSelectedOrderPatientId(item.patientId)}
-                    className="w-full py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-xs font-bold flex items-center justify-center gap-1.5 transition"
-                  >
-                    <Receipt className="w-3.5 h-3.5" />
-                    <span>سفارش و صورتحساب بیمار</span>
-                  </button>
+                  {/* Doctor and Visit Notes */}
+                  <div className="text-xs space-y-1.5 p-2.5 rounded-xl bg-[var(--bg-app)] border border-[var(--border-subtle)]">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <span className="text-[var(--text-muted)]">پزشک / سرویس: </span>
+                        <span className="font-bold">{item.doctorName}</span>
+                      </div>
+
+                      {item.patientType === 'EXTERNAL_DOCTOR' ? (
+                        <span className="px-2 py-0.5 bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300 text-[10px] font-bold rounded-md">
+                          نسخه خارج کلینیک
+                        </span>
+                      ) : item.visitMode === 'DIRECT_SERVICE' || item.patientType === 'NO_DOCTOR' ? (
+                        <span className="px-2 py-0.5 bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300 text-[10px] font-bold rounded-md">
+                          خدمت مستقیم پرستاری
+                        </span>
+                      ) : (
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300 text-[10px] font-bold rounded-md">
+                          ویزیت پزشک
+                        </span>
+                      )}
+                    </div>
+
+                    {item.externalDoctorDetails && (
+                      <div className="text-[11px] text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/40 p-1.5 rounded-lg border border-amber-200/60">
+                        پزشک صادرکننده: {item.externalDoctorDetails.doctorName || 'نامشخص'} | مرکز: {item.externalDoctorDetails.clinicName || 'سایر'}
+                      </div>
+                    )}
+
+                    {item.directServicesList && item.directServicesList.length > 0 && (
+                      <div className="flex flex-wrap gap-1 pt-1">
+                        {item.directServicesList.map((srv, idx) => (
+                          <span key={idx} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-800 border border-emerald-200 text-[9px] font-bold rounded">
+                            {srv}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {item.notes && (
+                      <div className="text-[11px] text-[var(--text-muted)] truncate pt-0.5">
+                        ملاحظات: {item.notes}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="pt-2 flex flex-col gap-2 border-t border-[var(--border-subtle)]">
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => setSelectedOrderPatientId(item.patientId)}
+                        className="w-full py-1.5 rounded-xl bg-sky-50 dark:bg-sky-950/40 hover:bg-sky-100 dark:hover:bg-sky-900/60 text-sky-700 dark:text-sky-300 border border-sky-200 dark:border-sky-800 text-xs font-bold flex items-center justify-center gap-1.5 transition"
+                      >
+                        <Receipt className="w-3.5 h-3.5" />
+                        <span>سفارش و صورتحساب بیمار</span>
+                      </button>
+                    </div>
+
+                    {item.status === 'WAITING' && (
+                      <button
+                        onClick={() => handleCallPatient(item)}
+                        className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow transition"
+                      >
+                        <Volume2 className="w-4 h-4" />
+                        <span>فراخوان به اتاق پزشک</span>
+                      </button>
+                    )}
+
+                    {item.status === 'IN_CONSULTATION' && (
+                      <div className="flex items-center gap-2 w-full">
+                        <button
+                          onClick={() => setActiveModule('doctor_emr')}
+                          className="flex-1 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow transition"
+                        >
+                          <Stethoscope className="w-4 h-4" />
+                          <span>ثبت نسخه در EMR</span>
+                        </button>
+                        <button
+                          onClick={() => updateQueueStatus(item.id, 'COMPLETED')}
+                          className="py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1 shadow transition"
+                          title="اتمام معاینه"
+                        >
+                          <CheckCircle2 className="w-4 h-4" />
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
 
-                {item.status === 'WAITING' && (
-                  <button
-                    onClick={() => handleCallPatient(item)}
-                    className="w-full py-2 rounded-xl bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow transition"
-                  >
-                    <Volume2 className="w-4 h-4" />
-                    <span>فراخوان به اتاق پزشک</span>
-                  </button>
-                )}
+      {/* ============================================================ */}
+      {/* TAB 2: RECEPTION HISTORY */}
+      {/* ============================================================ */}
+      {mainTab === 'RECEPTION_HISTORY' && <ReceptionHistoryTab />}
 
-                {item.status === 'IN_CONSULTATION' && (
-                  <div className="flex items-center gap-2 w-full">
-                    <button
-                      onClick={() => setActiveModule('doctor_emr')}
-                      className="flex-1 py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white text-xs font-bold flex items-center justify-center gap-1.5 shadow transition"
-                    >
-                      <Stethoscope className="w-4 h-4" />
-                      <span>ثبت نسخه در EMR</span>
-                    </button>
-                    <button
-                      onClick={() => updateQueueStatus(item.id, 'COMPLETED')}
-                      className="py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold flex items-center justify-center gap-1 shadow transition"
-                      title="اتمام معاینه"
-                    >
-                      <CheckCircle2 className="w-4 h-4" />
-                    </button>
-                  </div>
-                )}
-
-                {item.status === 'COMPLETED' && (
-                  <span className="text-emerald-600 font-bold text-xs flex items-center gap-1">
-                    <CheckCircle2 className="w-4 h-4" />
-                    <span>ویزیت این بیمار تکمیل گردید</span>
-                  </span>
-                )}
-              </div>
-            </div>
-          ))
-        )}
-      </div>
+      {/* ============================================================ */}
+      {/* TAB 3: PATIENT TIMELINE */}
+      {/* ============================================================ */}
+      {mainTab === 'PATIENT_TIMELINE' && <PatientTimelineSection />}
 
       <PatientOrderWorkflowModal
         patientId={selectedOrderPatientId || undefined}

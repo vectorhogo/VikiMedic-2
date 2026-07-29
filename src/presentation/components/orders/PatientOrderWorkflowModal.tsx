@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Plus,
@@ -15,8 +15,6 @@ import {
   FileText,
   Printer,
   DollarSign,
-  Tag,
-  Percent,
   Barcode,
   Sparkles,
   Clock,
@@ -24,8 +22,7 @@ import {
   Layers,
   Pill,
   Stethoscope,
-  ChevronDown,
-  ChevronUp,
+  Lock,
 } from 'lucide-react';
 import { useClinic } from '../../../application/ClinicContext';
 import {
@@ -58,35 +55,38 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
     createPatientOrder,
     updatePatientOrder,
     finalizeOrderAndPay,
-    printOrderReceipt,
     calculateOrderTotals,
     addNotification,
   } = useClinic();
 
-  // ESC key listener for modal accessibility
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
-
-  // Find or determine patient
+  // Find target patient
   const targetPatientId = order ? order.patientId : patientId || patients[0]?.id || '';
   const currentPatient = patients.find((p) => p.id === targetPatientId);
 
-  // Active working copy of order items
-  const [items, setItems] = useState<PatientOrderItem[]>(() => {
-    if (order) return order.items;
-    return [];
-  });
+  // Find existing draft/unpaid order for this patient if not passed directly
+  const existingDraft = useMemo(() => {
+    if (order) return order;
+    if (!targetPatientId) return null;
+    return (
+      patientOrders.find(
+        (o) =>
+          o.patientId === targetPatientId &&
+          o.status !== 'PAID' &&
+          o.status !== 'CANCELLED' &&
+          o.status !== 'ARCHIVED'
+      ) || null
+    );
+  }, [order, targetPatientId, patientOrders]);
 
-  const [overallDiscount, setOverallDiscount] = useState<number>(order ? order.totalDiscount : 0);
-  const [notes, setNotes] = useState<string>(order ? order.notes || '' : '');
+  const activeOrder = order || existingDraft;
+  const isPaid = activeOrder?.status === 'PAID';
+
+  const [activeOrderId, setActiveOrderId] = useState<string | null>(activeOrder ? activeOrder.id : null);
+  const [items, setItems] = useState<PatientOrderItem[]>(activeOrder ? activeOrder.items : []);
+  const [overallDiscount, setOverallDiscount] = useState<number>(activeOrder ? activeOrder.totalDiscount : 0);
+  const [notes, setNotes] = useState<string>(activeOrder ? activeOrder.notes || '' : '');
   const [modificationReason, setModificationReason] = useState<string>('');
+  const [lastAutoSaveTime, setLastAutoSaveTime] = useState<string | null>(null);
 
   // Search & Catalog Filter UI State
   const [searchTerm, setSearchTerm] = useState('');
@@ -100,9 +100,93 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
   const [posAmount, setPosAmount] = useState<number>(0);
   const [cardAmount, setCardAmount] = useState<number>(0);
 
-  // Show modification history drawer
+  // Show modification history drawer & checkout confirmation
   const [showHistory, setShowHistory] = useState(false);
   const [showCheckoutDialog, setShowCheckoutDialog] = useState(false);
+
+  // ESC key listener
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
+  // Sync state when modal opens or active order changes
+  useEffect(() => {
+    if (isOpen) {
+      if (activeOrder) {
+        setItems(activeOrder.items || []);
+        setOverallDiscount(activeOrder.totalDiscount || 0);
+        setNotes(activeOrder.notes || '');
+        setActiveOrderId(activeOrder.id);
+      } else {
+        setItems([]);
+        setOverallDiscount(0);
+        setNotes('');
+        setActiveOrderId(null);
+      }
+    }
+  }, [isOpen, activeOrder?.id]);
+
+  // Auto-Save Draft logic (every 10 seconds)
+  const saveDraft = (isSilent: boolean = false): PatientOrder | null => {
+    if (items.length === 0) {
+      if (!isSilent) {
+        addNotification('لطفاً حداقل یک خدمت یا دارو به سفارش اضافه کنید.', 'warning');
+      }
+      return null;
+    }
+
+    const nowTime = new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+
+    if (activeOrderId) {
+      const existingObj = patientOrders.find((o) => o.id === activeOrderId) || activeOrder;
+      if (existingObj) {
+        const updatedOrderObj: PatientOrder = {
+          ...existingObj,
+          items,
+          notes,
+          totalDiscount: overallDiscount,
+          status: existingObj.status === 'PAID' ? 'PAID' : 'DRAFT',
+        };
+        updatePatientOrder(activeOrderId, updatedOrderObj, 'EDIT_PRICE', 'به‌روزرسانی پیش‌نویس سفارش');
+        setLastAutoSaveTime(nowTime);
+        if (!isSilent) {
+          addNotification(`پیش‌نویس سفارش ${existingObj.orderNumber} با موفقیت بروزرسانی شد.`, 'success');
+        }
+        return updatedOrderObj;
+      }
+    }
+
+    // Create new draft
+    const created = createPatientOrder(targetPatientId, items, notes, 'DRAFT');
+    if (created) {
+      setActiveOrderId(created.id);
+      setLastAutoSaveTime(nowTime);
+      if (!isSilent) {
+        addNotification(`پیش‌نویس سفارش جدید با شماره ${created.orderNumber} ذخیره گردید.`, 'success');
+      }
+      return created;
+    }
+    return null;
+  };
+
+  // Interval for 10s Auto-Save
+  useEffect(() => {
+    if (!isOpen || isPaid) return;
+
+    const interval = setInterval(() => {
+      if (items.length > 0) {
+        saveDraft(true);
+      }
+    }, 10000);
+
+    return () => clearInterval(interval);
+  }, [isOpen, isPaid, items, overallDiscount, notes, activeOrderId, targetPatientId]);
 
   if (!isOpen) return null;
 
@@ -136,8 +220,13 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
     );
   };
 
-  // Add Item from Catalog to Draft Order
+  // Add Item from Catalog
   const handleAddItemFromCatalog = (catItem: CatalogItem) => {
+    if (isPaid) {
+      addNotification('اطلاعات مالی این فاکتور قفل گردیده است.', 'warning');
+      return;
+    }
+
     const isCovered = catItem.insuranceRule.isCovered && currentPatient?.insuranceType !== 'FREE';
     const coveragePct = isCovered ? catItem.insuranceRule.coveragePercentage : 0;
     
@@ -167,17 +256,18 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
     };
 
     setItems((prev) => [...prev, newItem]);
-    addNotification(`آیتم ${catItem.name} به صورتحساب افزوده شد.`, 'info');
+    addNotification(`آیتم ${catItem.name} به پیش‌نویس سفارش اضافه شد.`, 'info');
   };
 
   // Remove Item
   const handleRemoveItem = (itemId: string) => {
+    if (isPaid) return;
     setItems((prev) => prev.filter((i) => i.id !== itemId));
   };
 
   // Update Item Quantity
   const handleUpdateItemQuantity = (itemId: string, newQty: number) => {
-    if (newQty < 1) return;
+    if (isPaid || newQty < 1) return;
     setItems((prev) =>
       prev.map((i) => {
         if (i.id === itemId) {
@@ -201,6 +291,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
 
   // Update Item Custom Discount
   const handleUpdateItemDiscount = (itemId: string, discountVal: number) => {
+    if (isPaid) return;
     setItems((prev) =>
       prev.map((i) => {
         if (i.id === itemId) {
@@ -215,44 +306,32 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
     );
   };
 
-  // Save or Update Order
+  // Update Item Instructions / Dosage
+  const handleUpdateItemInstructions = (itemId: string, inst: string) => {
+    if (isPaid) return;
+    setItems((prev) =>
+      prev.map((i) => (i.id === itemId ? { ...i, instructions: inst } : i))
+    );
+  };
+
+  // Save Draft Click
   const handleSaveOrder = () => {
-    if (items.length === 0) {
-      addNotification('لطفاً حداقل یک خدمت یا دارو به سفارش اضافه کنید.', 'warning');
+    if (isPaid) {
+      addNotification('این سفارش تسویه نهایی گردیده و قابل تغییر نیست.', 'warning');
       return;
     }
-
-    if (order) {
-      if (!modificationReason.trim()) {
-        addNotification('لطفاً علت تغییر و ویرایش سفارش را وارد نمایید.', 'warning');
-        return;
-      }
-
-      const actionType: OrderModificationAction =
-        items.length > order.items.length
-          ? 'ADD_ITEM'
-          : items.length < order.items.length
-          ? 'REMOVE_ITEM'
-          : 'EDIT_PRICE';
-
-      const updatedOrderObj: PatientOrder = {
-        ...order,
-        items,
-        notes,
-        totalDiscount: overallDiscount,
-        status: order.status === 'DRAFT' ? 'READY_FOR_BILLING' : order.status,
-      };
-
-      updatePatientOrder(order.id, updatedOrderObj, actionType, modificationReason);
-      onClose();
-    } else {
-      createPatientOrder(targetPatientId, items, notes, 'READY_FOR_BILLING');
+    const saved = saveDraft(false);
+    if (saved) {
       onClose();
     }
   };
 
   // Trigger Checkout Confirmation Dialog
   const handleProcessPayment = () => {
+    if (isPaid) {
+      addNotification('این سفارش قبلاً تسویه نهایی گردیده است.', 'info');
+      return;
+    }
     if (items.length === 0) {
       addNotification('لطفاً حداقل یک خدمت یا دارو جهت تسویه حساب اضافه کنید.', 'warning');
       return;
@@ -260,13 +339,15 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
     setShowCheckoutDialog(true);
   };
 
-  // Button 1: Print Invoice
+  // Print Invoice Execution
   const executePrintInvoice = () => {
-    let targetOrd = order;
+    let targetOrd = patientOrders.find((o) => o.id === activeOrderId) || activeOrder;
     if (!targetOrd) {
-      targetOrd = createPatientOrder(targetPatientId, items, notes, 'READY_FOR_BILLING');
+      targetOrd = saveDraft(true);
     }
-    const finalized = finalizeOrderAndPay(
+    if (!targetOrd) return;
+
+    finalizeOrderAndPay(
       targetOrd.id,
       paymentMethod,
       {
@@ -283,12 +364,14 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
     onClose();
   };
 
-  // Button 2: Finish Without Printing
+  // Finish Without Printing Execution
   const executeFinishWithoutPrinting = () => {
-    let targetOrd = order;
+    let targetOrd = patientOrders.find((o) => o.id === activeOrderId) || activeOrder;
     if (!targetOrd) {
-      targetOrd = createPatientOrder(targetPatientId, items, notes, 'READY_FOR_BILLING');
+      targetOrd = saveDraft(true);
     }
+    if (!targetOrd) return;
+
     finalizeOrderAndPay(
       targetOrd.id,
       paymentMethod,
@@ -301,7 +384,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
       targetOrd,
       { openPrintModal: false }
     );
-    addNotification('فاکتور الکترونیکی با موفقیت صادر و در پرونده بیمار ذخیره گردید.', 'success');
+    addNotification('فاکتور با موفقیت تسویه، صادر و اطلاعات مالی قفل گردید.', 'success');
     setShowCheckoutDialog(false);
     onClose();
   };
@@ -321,27 +404,44 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
                 <h2 className="font-bold text-sm sm:text-base text-white">
                   سفارش بالینی و صورتحساب درمان بیمار
                 </h2>
-                {order && (
+                {activeOrder && (
                   <span className="px-2.5 py-0.5 text-xs font-mono font-medium bg-blue-500/20 text-blue-300 rounded-md border border-blue-500/30">
-                    {order.orderNumber}
+                    {activeOrder.orderNumber}
+                  </span>
+                )}
+                {isPaid ? (
+                  <span className="px-2.5 py-0.5 text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-md flex items-center gap-1">
+                    <Lock className="w-3 h-3" /> تسویه‌شده (قفل مالی)
+                  </span>
+                ) : (
+                  <span className="px-2.5 py-0.5 text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 rounded-md">
+                    پیش‌نویس فعال
                   </span>
                 )}
               </div>
               <p className="text-[11px] text-slate-300">
-                انتخاب خدمات، داروها، محاسبه فرانشیز بیمه و صدور فاکتور رسمی
+                مدیریت اقلام خدمات، داروها، فرانشیز بیمه و ذخیره خودمختار تا تسویه نهایی
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
-            {order && (
+          <div className="flex items-center gap-3">
+            {!isPaid && (
+              <div className="hidden md:flex items-center gap-1.5 text-[10px] text-emerald-400 font-mono bg-emerald-950/50 px-2.5 py-1 rounded-xl border border-emerald-800/60 shadow-xs">
+                <Clock className="w-3.5 h-3.5 text-emerald-400 animate-pulse" />
+                <span>ذخیره خودکار ۱۰ ثانیه‌ای</span>
+                {lastAutoSaveTime && <span className="text-emerald-300 font-bold">({lastAutoSaveTime})</span>}
+              </div>
+            )}
+
+            {activeOrder && (
               <button
                 type="button"
                 onClick={() => setShowHistory(!showHistory)}
                 className="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl flex items-center gap-1.5 transition border border-slate-700"
               >
                 <History className="w-3.5 h-3.5" />
-                <span>سوابق تغییرات ({order.modificationLogs.length})</span>
+                <span>سوابق تغییرات ({activeOrder.modificationLogs?.length || 0})</span>
               </button>
             )}
 
@@ -354,6 +454,17 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
             </button>
           </div>
         </div>
+
+        {/* LOCKED BANNER IF PAID */}
+        {isPaid && (
+          <div className="px-6 py-2.5 bg-amber-500/10 border-b border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-bold flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <Lock className="w-4 h-4 text-amber-500" />
+              <span>این سفارش تسویه نهایی گردیده و اطلاعات مالی آن قفل می‌باشد.</span>
+            </div>
+            <span className="bg-amber-500/20 px-2 py-0.5 rounded text-[10px] font-mono">STATUS: PAID</span>
+          </div>
+        )}
 
         {/* PATIENT & SHIFT STICKY CONTEXT BAR */}
         <div className="px-6 py-2.5 bg-sky-500/10 dark:bg-sky-950/30 border-b border-sky-500/20 flex flex-wrap items-center justify-between gap-3 text-xs shrink-0">
@@ -369,6 +480,11 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
             <div className="flex items-center gap-1.5 font-mono">
               <span className="text-slate-400">کد ملی:</span>
               <span>{currentPatient?.nationalId || '---'}</span>
+            </div>
+
+            <div className="flex items-center gap-1.5 font-mono">
+              <span className="text-slate-400">شماره پرونده:</span>
+              <span>{currentPatient?.fileNumber || '---'}</span>
             </div>
 
             <div className="flex items-center gap-1.5">
@@ -405,10 +521,10 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
             <div className="flex items-center justify-between mb-2.5">
               <h3 className="font-bold text-xs sm:text-sm flex items-center gap-2">
                 <FileText className="w-4 h-4 text-blue-500" />
-                <span>لیست اقلام انتخاب شده صورتحساب ({items.length})</span>
+                <span>لیست اقلام پیش‌نویس صورتحساب ({items.length})</span>
               </h3>
               <span className="text-[10px] text-slate-400">
-                امکان تغییر تعداد و اعمال تخفیف
+                {isPaid ? 'اطلاعات قفل شده است' : 'امکان تغییر تعداد، دستور مصرف و تخفیف'}
               </span>
             </div>
 
@@ -432,7 +548,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
                       <th className="py-2.5 px-2 text-center">سهم بیمه</th>
                       <th className="py-2.5 px-2 text-center">سهم بیمار</th>
                       <th className="py-2.5 px-2 text-center">تخفیف</th>
-                      <th className="py-2.5 px-2 text-center">حذف</th>
+                      {!isPaid && <th className="py-2.5 px-2 text-center">حذف</th>}
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border-subtle)] font-mono text-[11px]">
@@ -441,24 +557,36 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
                         <td className="py-2 px-3 font-sans">
                           <div className="font-bold text-[var(--text-main)]">{item.itemName}</div>
                           <div className="text-[10px] text-slate-400 font-mono">کد: {item.itemCode}</div>
+                          <input
+                            type="text"
+                            value={item.instructions || ''}
+                            onChange={(e) => handleUpdateItemInstructions(item.id, e.target.value)}
+                            placeholder="دستور مصرف / توضیحات..."
+                            disabled={isPaid}
+                            className="w-full mt-1 px-2 py-0.5 text-[10px] bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded text-[var(--text-main)] placeholder-slate-400"
+                          />
                         </td>
                         <td className="py-2 px-2 text-center">
                           <div className="flex items-center justify-center gap-1">
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateItemQuantity(item.id, item.quantity - 1)}
-                              className="w-5 h-5 rounded bg-slate-700 text-white flex items-center justify-center hover:bg-slate-600 font-bold"
-                            >
-                              -
-                            </button>
+                            {!isPaid && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateItemQuantity(item.id, item.quantity - 1)}
+                                className="w-5 h-5 rounded bg-slate-700 text-white flex items-center justify-center hover:bg-slate-600 font-bold"
+                              >
+                                -
+                              </button>
+                            )}
                             <span className="w-5 text-center font-bold">{item.quantity}</span>
-                            <button
-                              type="button"
-                              onClick={() => handleUpdateItemQuantity(item.id, item.quantity + 1)}
-                              className="w-5 h-5 rounded bg-slate-700 text-white flex items-center justify-center hover:bg-slate-600 font-bold"
-                            >
-                              +
-                            </button>
+                            {!isPaid && (
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateItemQuantity(item.id, item.quantity + 1)}
+                                className="w-5 h-5 rounded bg-slate-700 text-white flex items-center justify-center hover:bg-slate-600 font-bold"
+                              >
+                                +
+                              </button>
+                            )}
                           </div>
                         </td>
                         <td className="py-2 px-2 text-center font-bold">{item.unitPrice.toLocaleString('fa-IR')}</td>
@@ -472,19 +600,22 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
                           <input
                             type="number"
                             value={item.discount || 0}
+                            disabled={isPaid}
                             onChange={(e) => handleUpdateItemDiscount(item.id, Number(e.target.value))}
-                            className="w-14 px-1 py-0.5 text-center text-xs font-mono bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded"
+                            className="w-14 px-1 py-0.5 text-center text-xs font-mono bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded disabled:opacity-60"
                           />
                         </td>
-                        <td className="py-2 px-2 text-center">
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveItem(item.id)}
-                            className="p-1 text-rose-500 hover:bg-rose-500/10 rounded transition"
-                          >
-                            <Trash2 className="w-3.5 h-3.5" />
-                          </button>
-                        </td>
+                        {!isPaid && (
+                          <td className="py-2 px-2 text-center">
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveItem(item.id)}
+                              className="p-1 text-rose-500 hover:bg-rose-500/10 rounded transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </td>
+                        )}
                       </tr>
                     ))}
                   </tbody>
@@ -501,9 +632,10 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
                 <input
                   type="number"
                   value={overallDiscount}
+                  disabled={isPaid}
                   onChange={(e) => setOverallDiscount(Number(e.target.value))}
                   placeholder="مبلغ تخفیف..."
-                  className="w-full px-3 py-1.5 font-mono text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-xl"
+                  className="w-full px-3 py-1.5 font-mono text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-xl disabled:opacity-60"
                 />
               </div>
 
@@ -514,19 +646,20 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
                 <input
                   type="text"
                   value={notes}
+                  disabled={isPaid}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="نکات بالینی یا مالی..."
-                  className="w-full px-3 py-1.5 text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-xl"
+                  className="w-full px-3 py-1.5 text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-xl disabled:opacity-60"
                 />
               </div>
             </div>
 
             {/* Modification Reason if updating order */}
-            {order && (
+            {activeOrder && !isPaid && (
               <div className="mb-3 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs space-y-1">
                 <label className="font-bold text-amber-500 flex items-center gap-1">
                   <AlertTriangle className="w-3.5 h-3.5" />
-                  علت تغییر و اصلاح فاکتور (ثبت الزام‌آور)
+                  علت تغییر و اصلاح فاکتور (اختیاری)
                 </label>
                 <input
                   type="text"
@@ -690,7 +823,9 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
                   <div
                     key={catItem.id}
                     onClick={() => handleAddItemFromCatalog(catItem)}
-                    className="p-3 bg-[var(--bg-surface)] hover:border-blue-500/50 border border-[var(--border-subtle)] rounded-2xl cursor-pointer transition shadow-sm flex items-center justify-between group"
+                    className={`p-3 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl transition shadow-sm flex items-center justify-between group ${
+                      isPaid ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500/50 cursor-pointer'
+                    }`}
                   >
                     <div className="space-y-1">
                       <div className="flex items-center gap-1.5 font-bold text-xs group-hover:text-blue-500 transition">
@@ -742,6 +877,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
               <div className="grid grid-cols-3 gap-2 text-xs">
                 <button
                   type="button"
+                  disabled={isPaid}
                   onClick={() => setPaymentMethod('POS')}
                   className={`py-2 px-2 rounded-xl border font-bold flex items-center justify-center gap-1.5 transition ${
                     paymentMethod === 'POS'
@@ -755,6 +891,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
 
                 <button
                   type="button"
+                  disabled={isPaid}
                   onClick={() => setPaymentMethod('CASH')}
                   className={`py-2 px-2 rounded-xl border font-bold flex items-center justify-center gap-1.5 transition ${
                     paymentMethod === 'CASH'
@@ -768,6 +905,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
 
                 <button
                   type="button"
+                  disabled={isPaid}
                   onClick={() => setPaymentMethod('CARD_TO_CARD')}
                   className={`py-2 px-2 rounded-xl border font-bold flex items-center justify-center gap-1.5 transition ${
                     paymentMethod === 'CARD_TO_CARD'
@@ -802,23 +940,36 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
           </div>
 
           <div className="flex items-center gap-3">
-            <button
-              type="button"
-              onClick={handleSaveOrder}
-              className="px-4 py-2.5 text-xs font-bold text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition flex items-center gap-2"
-            >
-              <FileText className="w-4 h-4 text-sky-400" />
-              <span>ذخیره پیش‌نویس</span>
-            </button>
+            {!isPaid && (
+              <button
+                type="button"
+                onClick={handleSaveOrder}
+                className="px-4 py-2.5 text-xs font-bold text-slate-200 bg-slate-800 hover:bg-slate-700 border border-slate-700 rounded-xl transition flex items-center gap-2"
+              >
+                <FileText className="w-4 h-4 text-sky-400" />
+                <span>ذخیره پیش‌نویس</span>
+              </button>
+            )}
 
-            <button
-              type="button"
-              onClick={handleProcessPayment}
-              className="px-6 py-2.5 text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-xl transition shadow-lg flex items-center gap-2"
-            >
-              <CheckCircle2 className="w-4 h-4" />
-              <span>تسویه نهایی و صدور فاکتور</span>
-            </button>
+            {isPaid ? (
+              <button
+                type="button"
+                disabled
+                className="px-6 py-2.5 text-xs font-black text-amber-300 bg-slate-800/80 rounded-xl transition border border-amber-500/40 flex items-center gap-2 opacity-80 cursor-not-allowed"
+              >
+                <Lock className="w-4 h-4 text-amber-400" />
+                <span>فاکتور تسویه‌شده (اطلاعات مالی قفل)</span>
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleProcessPayment}
+                className="px-6 py-2.5 text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 rounded-xl transition shadow-lg flex items-center gap-2"
+              >
+                <CheckCircle2 className="w-4 h-4" />
+                <span>تسویه نهایی و صدور فاکتور</span>
+              </button>
+            )}
           </div>
         </div>
 
@@ -846,7 +997,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
             <div className="p-4 bg-[var(--bg-app)] rounded-2xl border border-[var(--border-subtle)] space-y-2 text-xs">
               <div className="flex justify-between">
                 <span className="text-[var(--text-muted)]">بیمار:</span>
-                <span className="font-bold">{currentPatient?.fullName || 'بیمار عمومی'}</span>
+                <span className="font-bold">{currentPatient ? `${currentPatient.firstName} ${currentPatient.lastName}` : 'بیمار عمومی'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--text-muted)]">مبلغ پرداختی:</span>
@@ -904,4 +1055,3 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
     </div>
   );
 };
-

@@ -194,6 +194,7 @@ export const DEFAULT_SYSTEM_ROLES: Role[] = [
       DELETE_INVOICE: false,
       EDIT_MEDICAL_RECORDS: false,
       MANAGE_USERS: true,
+      MANAGE_INITIAL_SETUP: true,
     },
     createdAt: '1403/01/01',
     updatedAt: '1403/01/01',

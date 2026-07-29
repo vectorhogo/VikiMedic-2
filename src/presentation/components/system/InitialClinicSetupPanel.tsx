@@ -37,6 +37,7 @@ import {
 import { useClinic } from '../../../application/ClinicContext';
 import { useAuth } from '../../../application/AuthContext';
 import { LocalStorageManager } from '../../../infrastructure/storage';
+import { ResetPinService } from '../../../infrastructure/resetPinService';
 import { SystemResetOptions, SystemResetReport, SystemSafetyCheckResult, SystemHealthReport } from '../../../domain/types';
 
 interface InitialClinicSetupPanelProps {
@@ -92,6 +93,7 @@ export const InitialClinicSetupPanel: React.FC<InitialClinicSetupPanelProps> = (
 
   const [isResetConfirmModalOpen, setIsResetConfirmModalOpen] = useState(false);
   const [confirmKeyword, setConfirmKeyword] = useState('');
+  const [resetPinInput, setResetPinInput] = useState('');
   const [adminPassword, setAdminPassword] = useState('');
   const [resetError, setResetError] = useState<string | null>(null);
   const [isResetting, setIsResetting] = useState(false);
@@ -143,6 +145,23 @@ export const InitialClinicSetupPanel: React.FC<InitialClinicSetupPanelProps> = (
       return;
     }
 
+    if (!resetPinInput) {
+      setResetError('وارد کردن پین امنیتی پاکسازی (Reset Security PIN) الزامی است.');
+      return;
+    }
+
+    // Verify Reset Security PIN with lockout protection
+    const pinCheck = await ResetPinService.verifyPin(resetPinInput, {
+      id: activeUser?.id || 'admin',
+      fullName: activeUser?.fullName || 'مدیر سیستم',
+      role: activeUser?.role || 'ADMIN',
+    });
+
+    if (!pinCheck.success) {
+      setResetError(pinCheck.error || 'پین امنیتی وارد شده اشتباه است.');
+      return;
+    }
+
     if (!adminPassword) {
       setResetError('وارد کردن رمز عبور کاربر جاری الزامی است.');
       return;
@@ -175,7 +194,7 @@ export const InitialClinicSetupPanel: React.FC<InitialClinicSetupPanelProps> = (
         username: activeUser?.username || activeUser?.fullName || 'UNKNOWN',
         fullName: activeUser?.fullName || 'کاربر',
         userRole: activeUser?.role || 'RECEPTIONIST',
-        action: 'SETTINGS_UPDATE',
+        action: 'INITIAL_SETUP_RESET',
         details: `اجرای عملیات راه‌اندازی اولیه و بازنشانی ایمن داده‌ها (توسط: ${activeUser?.fullName} | نقش: ${activeUser?.role})`,
         device: 'Desktop Client / Security Enforced',
         clinicId: activeClinic?.id || 'clinic-01',
@@ -785,8 +804,26 @@ export const InitialClinicSetupPanel: React.FC<InitialClinicSetupPanelProps> = (
               </div>
 
               <div className="space-y-1.5">
+                <label className="font-bold text-[var(--text-main)] block flex items-center justify-between">
+                  <span>۲. پین امنیتی پاکسازی (Reset Security PIN):</span>
+                  {ResetPinService.isDefaultPinActive() && (
+                    <span className="text-[10px] text-amber-600 dark:text-amber-400 font-normal">
+                      (پین پیش‌فرض: 8585)
+                    </span>
+                  )}
+                </label>
+                <input
+                  type="password"
+                  value={resetPinInput}
+                  onChange={(e) => setResetPinInput(e.target.value)}
+                  placeholder="پین امنیتی (مثال: 8585)"
+                  className="w-full p-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-app)] focus:border-rose-600 outline-none dir-ltr font-mono font-bold text-center text-sm tracking-widest"
+                />
+              </div>
+
+              <div className="space-y-1.5">
                 <label className="font-bold text-[var(--text-main)] block">
-                  ۲. رمز عبور مدیر ارشد سیستم (Administrator Password):
+                  ۳. رمز عبور مدیر ارشد سیستم (Administrator Password):
                 </label>
                 <input
                   type="password"

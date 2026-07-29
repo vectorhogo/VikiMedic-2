@@ -32,6 +32,9 @@ import { UserManagementModule } from './UserManagementModule';
 import { InitialClinicSetupPanel } from '../components/system/InitialClinicSetupPanel';
 import { SystemValidationPanel } from '../components/settings/SystemValidationPanel';
 import { ConfigProfilesPanel } from '../components/settings/ConfigProfilesPanel';
+import { DisplayPerformancePanel } from '../components/settings/DisplayPerformancePanel';
+import { WorkspaceCustomizationPanel } from '../components/system/WorkspaceCustomizationPanel';
+import { ResetProtectionPanel } from '../components/system/ResetProtectionPanel';
 
 export const SettingsModule: React.FC = () => {
   const {
@@ -52,7 +55,17 @@ export const SettingsModule: React.FC = () => {
 
   // Active Settings Tab State
   const [activeTab, setActiveTab] = useState<
-    'users' | 'system_setup' | 'system_validation' | 'config_profiles' | 'general' | 'shifts' | 'shift_histories' | 'database'
+    | 'users'
+    | 'workspace_customization'
+    | 'reset_protection'
+    | 'system_setup'
+    | 'system_validation'
+    | 'config_profiles'
+    | 'display'
+    | 'general'
+    | 'shifts'
+    | 'shift_histories'
+    | 'database'
   >('users');
 
   // Clinic Profile State
@@ -237,6 +250,30 @@ export const SettingsModule: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('workspace_customization')}
+          className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition ${
+            activeTab === 'workspace_customization'
+              ? 'bg-purple-600 text-white shadow-md'
+              : 'bg-[var(--bg-surface)] hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)]'
+          }`}
+        >
+          <Sliders className="w-4 h-4 text-purple-400" />
+          <span>سفارشی‌سازی میز کار</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('reset_protection')}
+          className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition ${
+            activeTab === 'reset_protection'
+              ? 'bg-rose-600 text-white shadow-md'
+              : 'bg-[var(--bg-surface)] hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)]'
+          }`}
+        >
+          <ShieldAlert className="w-4 h-4 text-rose-400" />
+          <span>پین امنیتی پاکسازی</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('config_profiles')}
           className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition ${
             activeTab === 'config_profiles'
@@ -246,6 +283,18 @@ export const SettingsModule: React.FC = () => {
         >
           <Sliders className="w-4 h-4 text-purple-400" />
           <span>پروفایل‌های پیکربندی (Profiles)</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab('display')}
+          className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition ${
+            activeTab === 'display'
+              ? 'bg-blue-600 text-white shadow-md'
+              : 'bg-[var(--bg-surface)] hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)]'
+          }`}
+        >
+          <Palette className="w-4 h-4 text-pink-400" />
+          <span>نمایش و عملکرد (Display)</span>
         </button>
 
         <button
@@ -312,6 +361,12 @@ export const SettingsModule: React.FC = () => {
       {/* Tab 0: User Management Foundation (Patch 03.0) */}
       {activeTab === 'users' && <UserManagementModule />}
 
+      {/* Tab: Workspace Customization */}
+      {activeTab === 'workspace_customization' && <WorkspaceCustomizationPanel />}
+
+      {/* Tab: Reset PIN Protection */}
+      {activeTab === 'reset_protection' && <ResetProtectionPanel />}
+
       {/* Tab 0.1: System Readiness Validation (Enterprise Patch 01) */}
       {activeTab === 'system_validation' && (
         <SystemValidationPanel onNavigateTab={(tab) => setActiveTab(tab as any)} />
@@ -319,6 +374,9 @@ export const SettingsModule: React.FC = () => {
 
       {/* Tab 0.2: Configuration Profiles (Enterprise Patch 01) */}
       {activeTab === 'config_profiles' && <ConfigProfilesPanel />}
+
+      {/* Tab 0.3: Display Settings & Adaptive Performance Mode (Performance Patch 01) */}
+      {activeTab === 'display' && <DisplayPerformancePanel />}
 
       {/* Tab 0.5: Initial Clinic Setup & Safe Data Reset (System Patch 01) */}
       {activeTab === 'system_setup' && <InitialClinicSetupPanel />}

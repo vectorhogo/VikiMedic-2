@@ -1140,6 +1140,17 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     });
     LocalStorageManager.savePatientOrder(updatedOrder);
 
+    // Queue Rule: After successful payment, mark patient queue item as COMPLETED so patient is removed from Waiting Queue
+    const allQueue = LocalStorageManager.getQueue();
+    const matchingItem = allQueue.find(
+      (q) => (q.patientId === targetOrder.patientId || (q.patientNationalId && q.patientNationalId === targetOrder.patientNationalId)) && q.status !== 'COMPLETED'
+    );
+    if (matchingItem) {
+      const updatedQueue = allQueue.map((q) => (q.id === matchingItem.id ? { ...q, status: 'COMPLETED' as const } : q));
+      LocalStorageManager.saveQueue(updatedQueue);
+      setQueue(updatedQueue.filter((q) => q.clinicId === activeClinicId));
+    }
+
     if (options?.openPrintModal !== false) {
       setActivePrintOrder(updatedOrder);
     }
