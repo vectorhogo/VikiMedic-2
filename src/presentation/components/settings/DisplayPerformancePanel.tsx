@@ -19,6 +19,7 @@ import {
   Layers,
   Palette,
   Check,
+  Leaf,
 } from 'lucide-react';
 import { usePerformance } from '../../PerformanceContext';
 import { useTheme } from '../../ThemeContext';
@@ -336,6 +337,19 @@ export const DisplayPerformancePanel: React.FC = () => {
               >
                 <span>تم سفید پزشکی (Medical White)</span>
                 {theme === 'theme-default' && <CheckCircle2 className="w-4 h-4 text-blue-600" />}
+              </button>
+
+              <button
+                onClick={() => setTheme('clinic-olive')}
+                className={`p-3 rounded-xl border text-right flex items-center justify-between transition ${
+                  theme === 'clinic-olive' ? 'border-[#6F7952] bg-[#E7E9DC] text-[#20231D]' : 'border-[var(--border-subtle)] bg-[var(--bg-app)]'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <Leaf className="w-4 h-4 text-[#6F7952]" />
+                  <span>تم سبز کلینیک (Minimal Olive - سبز)</span>
+                </div>
+                {theme === 'clinic-olive' && <CheckCircle2 className="w-4 h-4 text-[#6F7952]" />}
               </button>
 
               <button

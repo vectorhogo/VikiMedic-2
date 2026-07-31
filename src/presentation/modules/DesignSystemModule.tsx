@@ -104,6 +104,14 @@ export const DesignSystemModule: React.FC = () => {
               Medical White
             </button>
             <button
+              onClick={() => setTheme('clinic-olive')}
+              className={`px-2 py-1 text-[10px] rounded-lg border transition ${
+                theme === 'clinic-olive' ? 'bg-[#6F7952] text-white font-bold border-[#A7AE8A]' : 'bg-slate-800 text-slate-300 border-slate-700'
+              }`}
+            >
+              Minimal Olive
+            </button>
+            <button
               onClick={() => setTheme('theme-dark')}
               className={`px-2 py-1 text-[10px] rounded-lg border transition ${
                 theme === 'theme-dark' ? 'bg-purple-600 text-white font-bold border-purple-400' : 'bg-slate-800 text-slate-300 border-slate-700'

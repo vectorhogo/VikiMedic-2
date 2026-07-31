@@ -731,7 +731,7 @@ export const SettingsModule: React.FC = () => {
               <span>مدیریت تم و زیبایی بصری (Design System)</span>
             </h2>
 
-            <div className="grid grid-cols-3 gap-2 pt-2">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 pt-2">
               <button
                 onClick={() => setTheme('theme-default')}
                 className={`p-3 rounded-xl border font-bold text-center transition ${
@@ -739,6 +739,14 @@ export const SettingsModule: React.FC = () => {
                 }`}
               >
                 تم سفید پزشکی
+              </button>
+              <button
+                onClick={() => setTheme('clinic-olive')}
+                className={`p-3 rounded-xl border font-bold text-center transition ${
+                  theme === 'clinic-olive' ? 'border-[#6F7952] bg-[#E7E9DC] text-[#20231D]' : 'border-[var(--border-subtle)]'
+                }`}
+              >
+                سبز
               </button>
               <button
                 onClick={() => setTheme('theme-dark')}

@@ -430,6 +430,18 @@ export const QualityAssuranceModule: React.FC = () => {
 
             <button
               onClick={() => {
+                setTheme('clinic-olive');
+                addNotification('تم سبز کلینیک (Minimal Olive) فعال گردید.', 'info');
+              }}
+              className={`px-4 py-2.5 rounded-xl font-bold border transition ${
+                theme === 'clinic-olive' ? 'bg-[#6F7952] text-white border-[#545D3E] shadow' : 'bg-[var(--bg-surface)] border-[var(--border-subtle)] text-[var(--text-main)]'
+              }`}
+            >
+              تم سبز کلینیک (Minimal Olive)
+            </button>
+
+            <button
+              onClick={() => {
                 setTheme('theme-dark');
                 addNotification('تم تاریک ضد خستگی فعال گردید.', 'info');
               }}

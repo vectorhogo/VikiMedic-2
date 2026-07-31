@@ -31,6 +31,7 @@ import {
   CatalogItem,
   PaymentMethod,
   OrderModificationAction,
+  calculateInsuranceCoverageForItem,
 } from '../../../domain/types';
 
 interface PatientOrderWorkflowModalProps {
@@ -196,18 +197,38 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
   // Filter Catalog Items
   const categories = Array.from(new Set(catalogItems.map((c) => c.category)));
   const filteredCatalog = catalogItems.filter((item) => {
+    const query = searchTerm.trim().toLowerCase();
     const matchesSearch =
-      !searchTerm ||
-      item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      item.code.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (item.barcode && item.barcode.includes(searchTerm));
+      !query ||
+      item.name.toLowerCase().includes(query) ||
+      item.code.toLowerCase().includes(query) ||
+      (item.barcode && item.barcode.toLowerCase().includes(query)) ||
+      (item.category && item.category.toLowerCase().includes(query)) ||
+      (item.type && item.type.toLowerCase().includes(query)) ||
+      (item.description && item.description.toLowerCase().includes(query));
 
     const matchesCategory = selectedCategory === 'ALL' || item.category === selectedCategory;
 
     let matchesType = true;
-    if (catalogType === 'SERVICE') matchesType = item.type === 'SERVICE';
-    if (catalogType === 'MEDICINE') matchesType = item.type === 'MEDICINE';
-    if (catalogType === 'FAVORITES') matchesType = favorites.includes(item.id);
+    if (catalogType === 'SERVICE') {
+      matchesType =
+        item.type === 'SERVICE' ||
+        item.type === 'MEDICAL_SERVICE' ||
+        item.type === 'LAB_SERVICE' ||
+        item.type === 'RADIOLOGY_SERVICE' ||
+        item.type === 'DOCTOR_VISIT' ||
+        item.type === 'VISIT' ||
+        item.type === 'LAB' ||
+        item.type === 'RADIOLOGY' ||
+        item.type === 'OTHER';
+    } else if (catalogType === 'MEDICINE') {
+      matchesType =
+        item.type === 'MEDICINE' ||
+        item.type === 'PRODUCT' ||
+        item.type === 'CONSUMABLE';
+    } else if (catalogType === 'FAVORITES') {
+      matchesType = favorites.includes(item.id);
+    }
 
     return matchesSearch && matchesCategory && matchesType && item.status === 'ACTIVE';
   });
@@ -227,12 +248,15 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
       return;
     }
 
-    const isCovered = catItem.insuranceRule.isCovered && currentPatient?.insuranceType !== 'FREE';
-    const coveragePct = isCovered ? catItem.insuranceRule.coveragePercentage : 0;
-    
     const gross = catItem.price;
-    const insShare = Math.round((gross * coveragePct) / 100);
-    const patShare = gross - insShare;
+    const { coverageAmount } = calculateInsuranceCoverageForItem(
+      catItem,
+      currentPatient?.insuranceType,
+      gross
+    );
+
+    const insShare = Math.round(coverageAmount);
+    const patShare = Math.max(0, gross - insShare);
 
     const newItem: PatientOrderItem = {
       id: 'poi-' + Date.now() + Math.random().toString(36).substring(2, 5),

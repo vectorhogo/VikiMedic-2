@@ -15,6 +15,7 @@ import {
   Sparkles,
   ShieldCheck,
   Stethoscope,
+  Leaf,
 } from 'lucide-react';
 import { useClinic } from '../../../application/ClinicContext';
 import { useTheme } from '../../ThemeContext';
@@ -183,9 +184,11 @@ export const DesktopTitleBar: React.FC = () => {
         <button
           onClick={toggleTheme}
           className="p-1.5 hover:bg-slate-800 text-slate-300 rounded-md transition flex items-center gap-1"
-          title="تغییر تم (سفید / تاریک / رز)"
+          title="تغییر تم (سفید / سبز / تاریک / رز)"
         >
-          {theme === 'theme-dark' ? (
+          {theme === 'clinic-olive' ? (
+            <Leaf className="w-3.5 h-3.5 text-[#A7AE8A]" />
+          ) : theme === 'theme-dark' ? (
             <Sun className="w-3.5 h-3.5 text-amber-400" />
           ) : theme === 'theme-rose' ? (
             <Sparkles className="w-3.5 h-3.5 text-rose-400" />

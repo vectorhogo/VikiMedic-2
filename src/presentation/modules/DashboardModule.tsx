@@ -28,6 +28,7 @@ import {
   Info,
   Activity,
   Layers,
+  Leaf,
 } from 'lucide-react';
 import { useClinic } from '../../application/ClinicContext';
 import { useAuth } from '../../application/AuthContext';
@@ -167,7 +168,9 @@ export const DashboardModule: React.FC = () => {
               className="bg-slate-800/90 hover:bg-slate-700 text-slate-200 p-2.5 rounded-xl border border-slate-700 transition text-xs font-bold shadow-sm active:scale-95"
               title="تغییر حالت تم"
             >
-              {theme === 'theme-dark' ? (
+              {theme === 'clinic-olive' ? (
+                <Leaf className="w-4 h-4 text-[#A7AE8A]" />
+              ) : theme === 'theme-dark' ? (
                 <Sun className="w-4 h-4 text-amber-400" />
               ) : theme === 'theme-rose' ? (
                 <Sparkles className="w-4 h-4 text-rose-400" />

@@ -17,6 +17,7 @@ import {
   ShiftHandoverRecord,
   ShiftAuditLog,
   CatalogItem,
+  CatalogImportAuditLog,
   PatientOrder,
   UserCredential,
   AuthSession,
@@ -61,6 +62,7 @@ const STORAGE_KEYS = {
   SYSTEM_RESET_REPORTS: 'vikimedic_v2_system_reset_reports',
   AI_SETTINGS: 'vikimedic_v2_ai_settings',
   VIKI_CHAT_HISTORY: 'vikimedic_v2_viki_chat_history',
+  CATALOG_IMPORT_AUDIT_LOGS: 'vikimedic_v2_catalog_import_audit_logs',
 };
 
 // Initial Multi-Clinic Seed Data
@@ -745,7 +747,7 @@ const INITIAL_SHIFT_HISTORIES: ShiftAssignmentHistory[] = [
   },
 ];
 
-// Patch 02.6: Initial Centralized Catalog Seed Data
+// Patch 02.6 & Catalog Patch 01: Initial Centralized Catalog Seed Data
 const INITIAL_CATALOG_ITEMS: CatalogItem[] = [
   {
     id: 'cat-101',
@@ -754,10 +756,47 @@ const INITIAL_CATALOG_ITEMS: CatalogItem[] = [
     barcode: '6260101000101',
     name: 'ویزیت تخصصی پزشک عمومی / داخلی',
     category: 'ویزیت',
-    type: 'VISIT',
+    type: 'DOCTOR_VISIT',
     price: 180000,
+    currency: 'تومان',
+    effectiveDate: '2026-01-01',
     unit: 'خدمت',
     insuranceRule: { isCovered: true, coveragePercentage: 70 },
+    insuranceRules: [
+      {
+        id: 'ins-rule-101-1',
+        providerName: 'تأمین اجتماعی',
+        coveragePercentage: 70,
+        maxCoverageAmount: 140000,
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'ins-rule-101-2',
+        providerName: 'بیمه سلامت',
+        coveragePercentage: 50,
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'ins-rule-101-3',
+        providerName: 'بیمه صادرات',
+        coveragePercentage: 30,
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+      },
+    ],
+    priceHistory: [
+      {
+        id: 'ph-101-1',
+        salePrice: 180000,
+        currency: 'تومان',
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+        createdAt: '2026-01-01T08:00:00Z',
+        notes: 'تعرفه اولیه مصوب کلینیک',
+      },
+    ],
     taxPercentage: 0,
     status: 'ACTIVE',
     description: 'حق ویزیت کامل و معاینه بالینی بیمار در کلینیک',
@@ -771,8 +810,46 @@ const INITIAL_CATALOG_ITEMS: CatalogItem[] = [
     category: 'دارویی',
     type: 'MEDICINE',
     price: 45000,
+    purchasePrice: 28000,
+    currency: 'تومان',
+    effectiveDate: '2026-01-01',
     unit: 'جعبه (۳۰ عددی)',
     insuranceRule: { isCovered: true, coveragePercentage: 70 },
+    insuranceRules: [
+      {
+        id: 'ins-rule-102-1',
+        providerName: 'تأمین اجتماعی',
+        coveragePercentage: 70,
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'ins-rule-102-2',
+        providerName: 'بیمه سلامت',
+        coveragePercentage: 60,
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'ins-rule-102-3',
+        providerName: 'نیروهای مسلح',
+        coveragePercentage: 80,
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+      },
+    ],
+    priceHistory: [
+      {
+        id: 'ph-102-1',
+        salePrice: 45000,
+        purchasePrice: 28000,
+        currency: 'تومان',
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+        createdAt: '2026-01-01T08:00:00Z',
+        notes: 'قیمت خرید ۲۸,۰۰۰ و فروش ۴۵,۰۰۰',
+      },
+    ],
     taxPercentage: 0,
     status: 'ACTIVE',
     description: 'داروی کاهنده فشار خون گروه ARB',
@@ -786,8 +863,38 @@ const INITIAL_CATALOG_ITEMS: CatalogItem[] = [
     category: 'دارویی',
     type: 'MEDICINE',
     price: 35000,
+    purchasePrice: 20000,
+    currency: 'تومان',
+    effectiveDate: '2026-01-01',
     unit: 'آمپول',
     insuranceRule: { isCovered: true, coveragePercentage: 70 },
+    insuranceRules: [
+      {
+        id: 'ins-rule-103-1',
+        providerName: 'تأمین اجتماعی',
+        coveragePercentage: 70,
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'ins-rule-103-2',
+        providerName: 'بیمه سلامت',
+        coveragePercentage: 50,
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+      },
+    ],
+    priceHistory: [
+      {
+        id: 'ph-103-1',
+        salePrice: 35000,
+        purchasePrice: 20000,
+        currency: 'تومان',
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+        createdAt: '2026-01-01T08:00:00Z',
+      },
+    ],
     taxPercentage: 0,
     status: 'ACTIVE',
     description: 'تقویتی ویتامین گروه B کمپلکس',
@@ -799,10 +906,38 @@ const INITIAL_CATALOG_ITEMS: CatalogItem[] = [
     barcode: '6260201000201',
     name: 'نوار قلب کامل با تفسیر (ECG)',
     category: 'خدمات پاراکلینیک',
-    type: 'SERVICE',
+    type: 'MEDICAL_SERVICE',
     price: 150000,
+    currency: 'تومان',
+    effectiveDate: '2026-01-01',
     unit: 'خدمت',
     insuranceRule: { isCovered: true, coveragePercentage: 70 },
+    insuranceRules: [
+      {
+        id: 'ins-rule-104-1',
+        providerName: 'تأمین اجتماعی',
+        coveragePercentage: 70,
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+      },
+      {
+        id: 'ins-rule-104-2',
+        providerName: 'بیمه سلامت',
+        coveragePercentage: 50,
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+      },
+    ],
+    priceHistory: [
+      {
+        id: 'ph-104-1',
+        salePrice: 150000,
+        currency: 'تومان',
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+        createdAt: '2026-01-01T08:00:00Z',
+      },
+    ],
     taxPercentage: 0,
     status: 'ACTIVE',
     description: 'الکتروکاردیوگرام ۱۲ لیدی به همراه تفسیر پزشک',
@@ -814,10 +949,31 @@ const INITIAL_CATALOG_ITEMS: CatalogItem[] = [
     barcode: '6260301000301',
     name: 'تست کامل خون (CBC + Diff)',
     category: 'آزمایشگاه',
-    type: 'LAB',
+    type: 'LAB_SERVICE',
     price: 120000,
+    currency: 'تومان',
+    effectiveDate: '2026-01-01',
     unit: 'آزمایش',
     insuranceRule: { isCovered: true, coveragePercentage: 70 },
+    insuranceRules: [
+      {
+        id: 'ins-rule-105-1',
+        providerName: 'تأمین اجتماعی',
+        coveragePercentage: 70,
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+      },
+    ],
+    priceHistory: [
+      {
+        id: 'ph-105-1',
+        salePrice: 120000,
+        currency: 'تومان',
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+        createdAt: '2026-01-01T08:00:00Z',
+      },
+    ],
     taxPercentage: 0,
     status: 'ACTIVE',
     description: 'شمارش کامل گلبول‌های قرمز، سفید و پلاکت',
@@ -829,8 +985,10 @@ const INITIAL_CATALOG_ITEMS: CatalogItem[] = [
     barcode: '6260302000302',
     name: 'قند خون ناشتا (FBS) + HbA1c',
     category: 'آزمایشگاه',
-    type: 'LAB',
+    type: 'LAB_SERVICE',
     price: 95000,
+    currency: 'تومان',
+    effectiveDate: '2026-01-01',
     unit: 'آزمایش',
     insuranceRule: { isCovered: true, coveragePercentage: 70 },
     taxPercentage: 0,
@@ -844,8 +1002,10 @@ const INITIAL_CATALOG_ITEMS: CatalogItem[] = [
     barcode: '6260401000401',
     name: 'رادیوگرافی قفسه سینه (Chest X-Ray)',
     category: 'رادیولوژی',
-    type: 'RADIOLOGY',
+    type: 'RADIOLOGY_SERVICE',
     price: 220000,
+    currency: 'تومان',
+    effectiveDate: '2026-01-01',
     unit: 'گرافی',
     insuranceRule: { isCovered: true, coveragePercentage: 70 },
     taxPercentage: 0,
@@ -859,8 +1019,10 @@ const INITIAL_CATALOG_ITEMS: CatalogItem[] = [
     barcode: '6260501000501',
     name: 'تزریق عضلانی / وریدی داروی آمپولی',
     category: 'تزریقات و پانسمان',
-    type: 'INJECTION',
+    type: 'MEDICAL_SERVICE',
     price: 40000,
+    currency: 'تومان',
+    effectiveDate: '2026-01-01',
     unit: 'نوبت',
     insuranceRule: { isCovered: true, coveragePercentage: 50 },
     taxPercentage: 0,
@@ -876,8 +1038,31 @@ const INITIAL_CATALOG_ITEMS: CatalogItem[] = [
     category: 'تجهیزات و مصرفی',
     type: 'CONSUMABLE',
     price: 65000,
+    purchasePrice: 40000,
+    currency: 'تومان',
+    effectiveDate: '2026-01-01',
     unit: 'بسته',
     insuranceRule: { isCovered: false, coveragePercentage: 0 },
+    insuranceRules: [
+      {
+        id: 'ins-rule-109-1',
+        providerName: 'تأمین اجتماعی',
+        coveragePercentage: 30,
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+      },
+    ],
+    priceHistory: [
+      {
+        id: 'ph-109-1',
+        salePrice: 65000,
+        purchasePrice: 40000,
+        currency: 'تومان',
+        effectiveDate: '2026-01-01',
+        status: 'ACTIVE',
+        createdAt: '2026-01-01T08:00:00Z',
+      },
+    ],
     taxPercentage: 0,
     status: 'ACTIVE',
     description: 'لوازم مصرفی تزریق ورودی سرم',
@@ -1326,6 +1511,16 @@ export class LocalStorageManager {
     };
     this.setItem(STORAGE_KEYS.CATALOG_ITEMS, [newItem, ...list]);
     return newItem;
+  }
+
+  // Catalog Patch 05: Catalog Import Audit Logs
+  public static getCatalogImportAuditLogs(): CatalogImportAuditLog[] {
+    return this.getItem<CatalogImportAuditLog[]>(STORAGE_KEYS.CATALOG_IMPORT_AUDIT_LOGS, []);
+  }
+
+  public static saveCatalogImportAuditLog(log: CatalogImportAuditLog): void {
+    const list = this.getCatalogImportAuditLogs();
+    this.setItem(STORAGE_KEYS.CATALOG_IMPORT_AUDIT_LOGS, [log, ...list]);
   }
 
   // Patch 02.6: Patient Orders

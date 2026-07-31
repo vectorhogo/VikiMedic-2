@@ -3,7 +3,7 @@
  * Clean Architecture Layer: Domain
  */
 
-export type ThemeType = 'theme-default' | 'theme-dark' | 'theme-rose';
+export type ThemeType = 'theme-default' | 'clinic-olive' | 'theme-dark' | 'theme-rose';
 
 export type DefaultRoleCode =
   | 'ADMIN'
@@ -579,22 +579,51 @@ export interface ShiftAuditLog {
   reason: string;
 }
 
-// Patch 02.6: Catalog, Smart Clinical Workflow & Patient Order Types
+// Patch 02.6 & Catalog Patch 01: Catalog, Smart Clinical Workflow & Patient Order Types
 export type CatalogItemType =
-  | 'VISIT'
   | 'MEDICINE'
+  | 'PRODUCT'
+  | 'CONSUMABLE'
+  | 'MEDICAL_SERVICE'
+  | 'LAB_SERVICE'
+  | 'RADIOLOGY_SERVICE'
+  | 'DOCTOR_VISIT'
+  | 'OTHER'
+  | 'VISIT'
   | 'SERVICE'
   | 'LAB'
   | 'RADIOLOGY'
   | 'INJECTION'
-  | 'CONSUMABLE'
-  | 'EQUIPMENT'
-  | 'OTHER';
+  | 'EQUIPMENT';
 
 export interface CatalogInsuranceRule {
   isCovered: boolean;
   coveragePercentage: number; // e.g. 70 (%)
   maxCoveredAmountRial?: number;
+}
+
+export interface InsuranceCoverageRule {
+  id: string;
+  providerId?: string;
+  providerName: string; // e.g. "تأمین اجتماعی", "بیمه سلامت", "نیروهای مسلح", "بیمه صادرات"
+  coveragePercentage: number; // 0-100 (%)
+  maxCoverageAmount?: number; // Optional max covered amount in Toman
+  fixedCoverageAmount?: number; // Optional fixed coverage amount in Toman
+  effectiveDate: string; // ISO date string e.g. "2026-01-01"
+  expirationDate?: string; // Optional ISO date string
+  status: 'ACTIVE' | 'EXPIRED' | 'INACTIVE';
+}
+
+export interface CatalogPriceVersion {
+  id: string;
+  salePrice: number;
+  purchasePrice?: number;
+  currency: string; // e.g. "تومان"
+  effectiveDate: string; // ISO string or YYYY-MM-DD
+  status: 'ACTIVE' | 'INACTIVE';
+  createdAt: string;
+  createdBy?: string;
+  notes?: string;
 }
 
 export interface CatalogItem {
@@ -605,12 +634,291 @@ export interface CatalogItem {
   name: string; // e.g. "ویزیت متخصص غدد", "قرص لوزارتان ۵۰mg"
   category: string; // e.g. "ویزیت", "دارویی", "آزمایشگاه", "رادیولوژی", "خدمات عمومی"
   type: CatalogItemType;
-  price: number; // Base price in Toman
+  price: number; // Sale price in Toman
+  purchasePrice?: number; // Purchase price in Toman (Required for MEDICINE, PRODUCT, CONSUMABLE)
+  currency?: string; // Default 'تومان'
+  effectiveDate?: string; // YYYY-MM-DD
   unit: string; // e.g. "عدد", "جلسه", "خدمت"
-  insuranceRule: CatalogInsuranceRule;
+  insuranceRule: CatalogInsuranceRule; // Legacy rule for backward compatibility
+  insuranceRules?: InsuranceCoverageRule[]; // Multi-provider coverage rules
+  priceHistory?: CatalogPriceVersion[]; // Price version history
   taxPercentage: number; // e.g. 0 or 10 (%)
   status: 'ACTIVE' | 'INACTIVE';
   description?: string;
+}
+
+export function isPurchasePriceRequired(type: CatalogItemType): boolean {
+  return (
+    type === 'MEDICINE' ||
+    type === 'PRODUCT' ||
+    type === 'CONSUMABLE' ||
+    type === 'EQUIPMENT'
+  );
+}
+
+export interface CatalogItemProfit {
+  grossProfit: number;
+  profitMarginPct: number;
+  markupPct: number;
+}
+
+export function calculateCatalogProfit(
+  salePrice: number,
+  purchasePrice?: number
+): CatalogItemProfit {
+  const pPrice = purchasePrice || 0;
+  const grossProfit = salePrice - pPrice;
+  const profitMarginPct = salePrice > 0 ? (grossProfit / salePrice) * 100 : 0;
+  const markupPct = pPrice > 0 ? (grossProfit / pPrice) * 100 : 0;
+
+  return {
+    grossProfit,
+    profitMarginPct: Math.round(profitMarginPct * 100) / 100,
+    markupPct: Math.round(markupPct * 100) / 100,
+  };
+}
+
+export function calculateInsuranceCoverageForItem(
+  item: CatalogItem,
+  providerName?: string,
+  salePriceOverride?: number
+): { coverageAmount: number; coveragePct: number; appliedRule?: InsuranceCoverageRule } {
+  const price = salePriceOverride !== undefined ? salePriceOverride : item.price;
+  if (!providerName || providerName === 'آزاد' || providerName === 'FREE') {
+    return { coverageAmount: 0, coveragePct: 0 };
+  }
+
+  // Find active rule for specified provider
+  const activeRule = item.insuranceRules?.find(
+    (r) =>
+      r.status === 'ACTIVE' &&
+      r.providerName.trim().toLowerCase() === providerName.trim().toLowerCase()
+  );
+
+  if (activeRule) {
+    let coverage = 0;
+    // Calculation Priority: Fixed Amount > Percentage
+    if (activeRule.fixedCoverageAmount && activeRule.fixedCoverageAmount > 0) {
+      coverage = activeRule.fixedCoverageAmount;
+    } else {
+      coverage = (price * activeRule.coveragePercentage) / 100;
+    }
+
+    // Max coverage cap constraint
+    if (activeRule.maxCoverageAmount && activeRule.maxCoverageAmount > 0) {
+      coverage = Math.min(coverage, activeRule.maxCoverageAmount);
+    }
+
+    // Coverage cannot exceed sale price or be below 0
+    coverage = Math.min(coverage, price);
+    coverage = Math.max(0, coverage);
+
+    const effectivePct = price > 0 ? (coverage / price) * 100 : 0;
+    return {
+      coverageAmount: Math.round(coverage),
+      coveragePct: Math.round(effectivePct * 100) / 100,
+      appliedRule: activeRule,
+    };
+  }
+
+  // Fallback to default insuranceRule
+  if (item.insuranceRule && item.insuranceRule.isCovered) {
+    let coverage = (price * item.insuranceRule.coveragePercentage) / 100;
+    if (
+      item.insuranceRule.maxCoveredAmountRial &&
+      item.insuranceRule.maxCoveredAmountRial > 0
+    ) {
+      coverage = Math.min(coverage, item.insuranceRule.maxCoveredAmountRial);
+    }
+    coverage = Math.min(coverage, price);
+    return {
+      coverageAmount: Math.round(coverage),
+      coveragePct: item.insuranceRule.coveragePercentage,
+    };
+  }
+
+  return { coverageAmount: 0, coveragePct: 0 };
+}
+
+export function normalizePersianText(text: string): string {
+  if (!text) return '';
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/ي/g, 'ی')
+    .replace(/ك/g, 'ک')
+    .replace(/‌/g, ' ')
+    .replace(/\s+/g, ' ');
+}
+
+export function checkCatalogDuplicate(
+  items: CatalogItem[],
+  newItem: { code: string; barcode?: string; name: string },
+  currentId?: string
+): { isDuplicate: boolean; reason?: string; conflictingItem?: CatalogItem } {
+  const normCode = newItem.code.trim().toLowerCase();
+  const normBarcode = newItem.barcode ? newItem.barcode.trim().toLowerCase() : '';
+  const normName = normalizePersianText(newItem.name);
+
+  for (const item of items) {
+    if (currentId && item.id === currentId) continue;
+
+    if (item.code.trim().toLowerCase() === normCode) {
+      return {
+        isDuplicate: true,
+        reason: `کد اختصاصی «${item.code}» تکراری است و قبلاً برای «${item.name}» ثبت شده است.`,
+        conflictingItem: item,
+      };
+    }
+
+    if (
+      normBarcode &&
+      item.barcode &&
+      item.barcode.trim().toLowerCase() === normBarcode
+    ) {
+      return {
+        isDuplicate: true,
+        reason: `بارکد تجاری «${item.barcode}» تکراری است و قبلاً برای «${item.name}» ثبت شده است.`,
+        conflictingItem: item,
+      };
+    }
+
+    if (normalizePersianText(item.name) === normName) {
+      return {
+        isDuplicate: true,
+        reason: `عنوان هم‌نام «${item.name}» قبلاً در کاتالوگ با کد (${item.code}) ثبت گردیده است.`,
+        conflictingItem: item,
+      };
+    }
+  }
+
+  return { isDuplicate: false };
+}
+
+export interface CatalogDiagnosticReport {
+  timestamp: string;
+  totalItems: number;
+  activeItemsCount: number;
+  inactiveItemsCount: number;
+  validCategoriesCount: number;
+  priceIssuesCount: number;
+  brokenReferencesCount: number;
+  duplicatesCount: number;
+  status: 'HEALTHY' | 'WARNING' | 'CRITICAL';
+  details: string[];
+}
+
+export function runCatalogDiagnosticCheck(items: CatalogItem[]): CatalogDiagnosticReport {
+  const details: string[] = [];
+  let priceIssuesCount = 0;
+  let brokenReferencesCount = 0;
+  let duplicatesCount = 0;
+
+  if (!items || items.length === 0) {
+    return {
+      timestamp: new Date().toISOString(),
+      totalItems: 0,
+      activeItemsCount: 0,
+      inactiveItemsCount: 0,
+      validCategoriesCount: 0,
+      priceIssuesCount: 0,
+      brokenReferencesCount: 0,
+      duplicatesCount: 0,
+      status: 'CRITICAL',
+      details: ['کاتالوگ کاملاً خالی است. هیچ خدمت یا دارویی یافت نشد.'],
+    };
+  }
+
+  const activeItems = items.filter((i) => i.status === 'ACTIVE');
+  const inactiveItems = items.filter((i) => i.status === 'INACTIVE');
+  const categories = new Set(items.map((i) => i.category?.trim()).filter(Boolean));
+
+  if (activeItems.length === 0) {
+    details.push('هشدار: هیچ آیتم فعالی برای انتخاب در پذیرش وجود ندارد.');
+  }
+
+  const seenIds = new Set<string>();
+  const seenCodes = new Set<string>();
+  const seenBarcodes = new Set<string>();
+
+  items.forEach((item, index) => {
+    // ID Check
+    if (!item.id || seenIds.has(item.id)) {
+      brokenReferencesCount++;
+      details.push(`شناسه تکراری یا مفقود در ردیف ${index + 1}: ${item.id || 'بدون شناسه'}`);
+    } else {
+      seenIds.add(item.id);
+    }
+
+    // Code Check
+    const codeKey = item.code?.trim().toLowerCase();
+    if (!codeKey) {
+      brokenReferencesCount++;
+      details.push(`آیتم «${item.name || index + 1}» فاقد کد اختصاصی است.`);
+    } else if (seenCodes.has(codeKey)) {
+      duplicatesCount++;
+      details.push(`کد اختصاصی تکراری «${item.code}» برای آیتم «${item.name}»`);
+    } else {
+      seenCodes.add(codeKey);
+    }
+
+    // Barcode Check
+    if (item.barcode?.trim()) {
+      const barcodeKey = item.barcode.trim().toLowerCase();
+      if (seenBarcodes.has(barcodeKey)) {
+        duplicatesCount++;
+        details.push(`بارکد تکراری «${item.barcode}» برای آیتم «${item.name}»`);
+      } else {
+        seenBarcodes.add(barcodeKey);
+      }
+    }
+
+    // Sale Price Check
+    if (typeof item.price !== 'number' || isNaN(item.price) || item.price < 0) {
+      priceIssuesCount++;
+      details.push(`تعرفه فروش نامعتبر در «${item.name}»: ${item.price}`);
+    }
+
+    // Purchase Price Check for Products/Medicines
+    if (isPurchasePriceRequired(item.type)) {
+      if (
+        item.purchasePrice === undefined ||
+        item.purchasePrice === null ||
+        isNaN(item.purchasePrice) ||
+        item.purchasePrice < 0
+      ) {
+        priceIssuesCount++;
+        details.push(`قیمت خرید برای دارو/کالای «${item.name}» تعیین نشده یا منفی است.`);
+      }
+    }
+
+    // Category Check
+    if (!item.category || !item.category.trim()) {
+      details.push(`آیتم «${item.name}» فاقد دسته‌بندی موضوعی است.`);
+    }
+  });
+
+  let status: 'HEALTHY' | 'WARNING' | 'CRITICAL' = 'HEALTHY';
+  if (priceIssuesCount > 0 || brokenReferencesCount > 0 || duplicatesCount > 0) {
+    status = brokenReferencesCount > 0 ? 'CRITICAL' : 'WARNING';
+  }
+
+  if (details.length === 0) {
+    details.push('تمام آیتم‌های کاتالوگ سالم، دارای تعرفه معتبر و آماده همگام‌سازی لحظه‌ای با پذیرش هستند.');
+  }
+
+  return {
+    timestamp: new Date().toISOString(),
+    totalItems: items.length,
+    activeItemsCount: activeItems.length,
+    inactiveItemsCount: inactiveItems.length,
+    validCategoriesCount: categories.size,
+    priceIssuesCount,
+    brokenReferencesCount,
+    duplicatesCount,
+    status,
+    details,
+  };
 }
 
 export interface PatientOrderItem {
@@ -804,7 +1112,8 @@ export type ReportDatePreset =
   | 'THIS_MONTH'
   | 'LAST_MONTH'
   | 'THIS_YEAR'
-  | 'CUSTOM';
+  | 'CUSTOM'
+  | 'CUSTOM_DATETIME';
 
 export interface ReportFilterState {
   datePreset: ReportDatePreset;
@@ -823,6 +1132,13 @@ export interface ReportFilterState {
   clinicId?: string;
   patientCareType?: 'ALL' | PatientCareType;
   visitCareMode?: 'ALL' | VisitCareMode;
+  itemType?: 'ALL' | 'MEDICINE' | 'SERVICE' | 'PRODUCT' | 'CONSUMABLE';
+  itemId?: string;
+  category?: string;
+  invoiceStatus?: 'ALL' | 'PAID' | 'READY_FOR_BILLING' | 'CANCELLED';
+  groupBy?: 'ITEM' | 'DAY' | 'WEEK' | 'MONTH' | 'CATEGORY' | 'DOCTOR' | 'SHIFT';
+  comparisonMode?: 'NONE' | 'PREVIOUS_PERIOD' | 'THIS_VS_LAST_MONTH' | 'SHIFTS';
+  salesReportType?: 'COMBINED' | 'MEDICINE' | 'SERVICE' | 'PRODUCT' | 'CONSUMABLE';
 }
 
 export interface ReportSnapshot {
@@ -867,5 +1183,90 @@ export interface ReportExportLog {
   filterSummary: string;
   recordCount: number;
 }
+
+// Catalog Patch 05: Excel Import, Mapping, Validation, Preview & Audit Types
+export type CatalogTargetField =
+  | 'name'
+  | 'type'
+  | 'category'
+  | 'code'
+  | 'barcode'
+  | 'unit'
+  | 'purchasePrice'
+  | 'price'
+  | 'description'
+  | 'status'
+  | 'insuranceSupport'
+  | 'insuranceProvider'
+  | 'insurancePercentage'
+  | 'IGNORE';
+
+export interface TargetFieldDefinition {
+  key: CatalogTargetField;
+  labelPersian: string;
+  labelEnglish: string;
+  required: boolean;
+}
+
+export type CatalogDuplicateStrategy = 'SKIP' | 'UPDATE' | 'CREATE_COPY';
+
+export type ImportRowValidationStatus = 'VALID' | 'WARNING' | 'INVALID';
+
+export type ImportPlannedAction = 'ADD' | 'UPDATE' | 'SKIP' | 'CREATE_COPY' | 'REJECTED';
+
+export interface CatalogImportRowValidation {
+  rowIndex: number; // 1-based index from Excel
+  sourceData: Record<string, any>;
+  mappedItem: {
+    name: string;
+    type: CatalogItemType;
+    category: string;
+    code: string;
+    barcode: string;
+    unit: string;
+    purchasePrice: number;
+    price: number;
+    description: string;
+    status: 'ACTIVE' | 'INACTIVE';
+    insuranceSupport: boolean;
+    insuranceProvider?: string;
+    insurancePercentage?: number;
+  };
+  validationStatus: ImportRowValidationStatus;
+  plannedAction: ImportPlannedAction;
+  issues: string[];
+  conflictingItem?: CatalogItem;
+}
+
+export interface CatalogImportAuditLog {
+  id: string;
+  importedBy: string;
+  fileName: string;
+  importTime: string; // ISO string
+  result: 'SUCCESS' | 'PARTIAL' | 'FAILED' | 'ROLLED_BACK';
+  rowsRead: number;
+  itemsAdded: number;
+  itemsUpdated: number;
+  rowsSkipped: number;
+  errorCount: number;
+  warningCount: number;
+  duplicateStrategy: CatalogDuplicateStrategy;
+  details?: string;
+}
+
+export interface CatalogImportSummaryReport {
+  fileName: string;
+  importedBy: string;
+  timestamp: string;
+  rowsRead: number;
+  itemsAdded: number;
+  itemsUpdated: number;
+  rowsSkipped: number;
+  duplicatesFound: number;
+  errorsCount: number;
+  warningsCount: number;
+  auditLogId: string;
+}
+
 
 

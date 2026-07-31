@@ -45,7 +45,7 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   useEffect(() => {
     // Remove existing theme classes
-    document.documentElement.classList.remove('theme-default', 'theme-dark', 'theme-rose');
+    document.documentElement.classList.remove('theme-default', 'clinic-olive', 'theme-dark', 'theme-rose');
     // Apply new theme class
     document.documentElement.classList.add(theme);
     localStorage.setItem(THEME_STORAGE_KEY, theme);
@@ -53,6 +53,8 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
   const toggleTheme = () => {
     if (theme === 'theme-default') {
+      setThemeState('clinic-olive');
+    } else if (theme === 'clinic-olive') {
       setThemeState('theme-dark');
     } else if (theme === 'theme-dark') {
       if (isRoseUnlocked) {
@@ -78,7 +80,9 @@ export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const getThemeTitleFA = (t: ThemeType): string => {
     switch (t) {
       case 'theme-default':
-        return 'تم سفید پزشکی (Default Medical)';
+        return 'تم سفید پزشکی (Medical White)';
+      case 'clinic-olive':
+        return 'تم سبز پاستلی و مات کلینیک (Minimal Olive - سبز)';
       case 'theme-dark':
         return 'تم دارک و شب (Dark Theme)';
       case 'theme-rose':

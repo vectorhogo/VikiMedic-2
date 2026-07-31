@@ -50,6 +50,7 @@ import {
 } from 'lucide-react';
 import { useClinic, AppModule } from '../../../application/ClinicContext';
 import { useAuth } from '../../../application/AuthContext';
+import { useTheme } from '../../ThemeContext';
 import { StorageService } from '../../../infrastructure/storage';
 import { AIProviderService } from '../../../infrastructure/ai/AIProviderService';
 import { AICommandService, ParsedCommandResult } from '../../../infrastructure/ai/AICommandService';
@@ -78,6 +79,7 @@ interface HelpItem {
 }
 
 export const VikiAssistant: React.FC = () => {
+  const { theme } = useTheme();
   const {
     activeModule,
     setActiveModule,
@@ -699,24 +701,34 @@ export const VikiAssistant: React.FC = () => {
           {/* Outer Glow Ring */}
           <div
             className={`absolute -inset-2 rounded-full blur-md opacity-40 group-hover:opacity-80 transition duration-500 animate-pulse ${
-              aiSettings.mode === 'ONLINE'
+              theme === 'clinic-olive'
+                ? 'bg-gradient-to-r from-[#20331D] via-[#283F24] to-[#35542F]'
+                : aiSettings.mode === 'ONLINE'
                 ? 'bg-gradient-to-r from-emerald-500 via-teal-400 to-blue-500'
                 : 'bg-gradient-to-r from-blue-600 via-indigo-500 to-purple-500'
             }`}
           />
 
           {/* Main Floating Badge */}
-          <div className="relative w-13 h-13 rounded-2xl bg-slate-900/90 text-white border border-blue-400/40 shadow-2xl flex items-center justify-center p-3 backdrop-blur-xl group-hover:scale-105 active:scale-95 transition">
+          <div className={`relative w-13 h-13 rounded-2xl flex items-center justify-center p-3 backdrop-blur-xl group-hover:scale-105 active:scale-95 transition ${
+            theme === 'clinic-olive'
+              ? 'bg-[#283F24] text-white border border-[#62745D] shadow-2xl shadow-[#283F24]/30'
+              : 'bg-slate-900/90 text-white border border-blue-400/40 shadow-2xl'
+          }`}>
             <Bot
               className={`w-7 h-7 transition ${
-                aiSettings.mode === 'ONLINE' ? 'text-emerald-400' : 'text-blue-400'
+                theme === 'clinic-olive'
+                  ? 'text-white'
+                  : aiSettings.mode === 'ONLINE' ? 'text-emerald-400' : 'text-blue-400'
               }`}
             />
 
             {/* Online / Offline status badge */}
             <span
               className={`absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full border-2 border-slate-900 flex items-center justify-center ${
-                aiSettings.mode === 'ONLINE' ? 'bg-emerald-500' : 'bg-blue-500'
+                theme === 'clinic-olive'
+                  ? 'bg-[#4F6F4A]'
+                  : aiSettings.mode === 'ONLINE' ? 'bg-emerald-500' : 'bg-blue-500'
               }`}
             >
               {aiSettings.mode === 'ONLINE' ? (
@@ -729,7 +741,7 @@ export const VikiAssistant: React.FC = () => {
 
           {/* Quick Hover Label */}
           <div className="absolute right-full mr-3 bg-slate-900/95 text-white text-xs px-3 py-1.5 rounded-xl border border-slate-700 shadow-xl opacity-0 group-hover:opacity-100 transition duration-200 pointer-events-none whitespace-nowrap flex items-center gap-2 font-bold">
-            <Bot className="w-3.5 h-3.5 text-blue-400" />
+            <Bot className={`w-3.5 h-3.5 ${theme === 'clinic-olive' ? 'text-[#62745D]' : 'text-blue-400'}`} />
             <span>دستیار Viki ({aiSettings.mode === 'ONLINE' ? 'AI آنلاین' : 'آفلاین'})</span>
           </div>
         </div>
@@ -742,10 +754,16 @@ export const VikiAssistant: React.FC = () => {
             isMaximized
               ? 'inset-4 md:inset-8'
               : 'bottom-6 left-6 w-[92vw] sm:w-[500px] h-[600px] max-h-[88vh]'
-          } bg-[var(--bg-surface)]/95 backdrop-blur-2xl border border-blue-500/30 rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[var(--text-main)] animate-in fade-in zoom-in-95 duration-150 dir-rtl`}
+          } bg-[var(--bg-surface)]/95 backdrop-blur-2xl border ${
+            theme === 'clinic-olive' ? 'border-[#62745D]' : 'border-blue-500/30'
+          } rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[var(--text-main)] animate-in fade-in zoom-in-95 duration-150 dir-rtl`}
         >
           {/* Header Bar */}
-          <div className="bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 text-white p-3.5 border-b border-slate-800 flex items-center justify-between shrink-0">
+          <div className={`${
+            theme === 'clinic-olive'
+              ? 'bg-gradient-to-r from-[#20331D] via-[#283F24] to-[#35542F] text-white p-3.5 border-b border-[#62745D]'
+              : 'bg-gradient-to-r from-slate-950 via-indigo-950 to-slate-950 text-white p-3.5 border-b border-slate-800'
+          } flex items-center justify-between shrink-0`}>
             <div className="flex items-center gap-3">
               <div
                 className={`w-10 h-10 rounded-2xl flex items-center justify-center border shadow-inner ${

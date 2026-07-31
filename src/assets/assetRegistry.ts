@@ -16,9 +16,10 @@ export const ASSET_REGISTRY = {
     { name: 'Clinic Seal & Signature Watermark', path: '/assets/clinic-watermark.svg' },
   ],
   themes: [
-    { id: 'medical_white', nameFA: 'سفید پزشکی (Medical White)', cssVariables: 'theme-medical-white' },
-    { id: 'dark_eyesafe', nameFA: 'تاریک ضدخستگی (Dark Eyesafe)', cssVariables: 'theme-dark-eyesafe' },
-    { id: 'rose_luxe', nameFA: 'رز لوکس کلینیک زیبایی (Rose Luxe)', cssVariables: 'theme-rose-luxe' },
+    { id: 'medical_white', nameFA: 'سفید پزشکی (Medical White)', cssVariables: 'theme-default' },
+    { id: 'clinic_olive', nameFA: 'سبز پاستلی و مات (Minimal Olive)', cssVariables: 'clinic-olive' },
+    { id: 'dark_eyesafe', nameFA: 'تاریک ضدخستگی (Dark Eyesafe)', cssVariables: 'theme-dark' },
+    { id: 'rose_luxe', nameFA: 'رز لوکس کلینیک زیبایی (Rose Luxe)', cssVariables: 'theme-rose' },
   ],
   printTemplates: [
     { id: 'thermal_80mm', nameFA: 'فیش رسید حرارتی ۸۰ میلی‌متری (Receipt Printer)' },

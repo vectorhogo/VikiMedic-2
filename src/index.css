@@ -94,6 +94,229 @@
   --status-danger: #e11d48;
 }
 
+/* 4. Minimal Olive Clinic Theme (سبز) */
+.clinic-olive {
+  --bg-app: #F4F1E8;
+  --bg-surface: #FCFBF7;
+  --bg-card: #FCFBF7;
+  --bg-sidebar: #E7E9DC;
+  --bg-sidebar-hover: #DDD9CE;
+  --text-main: #20231D;
+  --text-muted: #777D6C;
+  --border-subtle: #CDD1BC;
+  --accent-primary: #283F24;
+  --accent-secondary: #35542F;
+  --accent-light: #E4EBE0;
+  --header-bg: #FCFBF7;
+  --titlebar-bg: #E7E9DC;
+  --shadow-sm: 0 1px 2px 0 rgba(40, 63, 36, 0.08);
+  --shadow-md: 0 4px 6px -1px rgba(40, 63, 36, 0.12), 0 2px 4px -2px rgba(40, 63, 36, 0.08);
+  --status-success: #4F6F4A;
+  --status-warning: #d97706;
+  --status-danger: #dc2626;
+
+  /* Explicit Olive Design Tokens (#283F24 Brand Identity) */
+  --app-background: #F4F1E8;
+  --surface-primary: #FCFBF7;
+  --surface-secondary: #EEEADF;
+  --surface-elevated: #FFFFFF;
+  --text-primary: #20231D;
+  --text-secondary: #555B4C;
+  --text-disabled: #9A9E91;
+  --border-soft: #DDD9CE;
+  --border-strong: #62745D;
+  --primary: #283F24;
+  --primary-hover: #35542F;
+  --primary-active: #20331D;
+  --primary-soft: #62745D;
+  --primary-bg-soft: #E4EBE0;
+  --primary-border: #62745D;
+  --focus-ring: rgba(40, 63, 36, 0.25);
+  --selection: #283F24;
+  --shadow-soft: 0 2px 8px 0 rgba(40, 63, 36, 0.08);
+
+  /* Olive Chart Tokens */
+  --chart-primary: #283F24;
+  --chart-secondary: #35542F;
+  --chart-tertiary: #4F6F4A;
+  --chart-quaternary: #62745D;
+  --chart-quinary: #9A9E91;
+}
+
+/* 4.1 Input Focus, Selection & Cursor in Olive */
+.clinic-olive input:focus,
+.clinic-olive select:focus,
+.clinic-olive textarea:focus {
+  border-color: #283F24 !important;
+  box-shadow: 0 0 0 3px rgba(40, 63, 36, 0.25) !important;
+  caret-color: #283F24 !important;
+}
+
+.clinic-olive ::selection {
+  background-color: #283F24 !important;
+  color: #FFFFFF !important;
+}
+
+/* 4.2 Sidebar Active State & Indicator */
+.clinic-olive .sidebar-item-active,
+.clinic-olive [data-sidebar-active="true"] {
+  background-color: #283F24 !important;
+  color: #FCFBF7 !important;
+}
+
+.clinic-olive .sidebar-item-active svg,
+.clinic-olive [data-sidebar-active="true"] svg {
+  color: #FCFBF7 !important;
+}
+
+.clinic-olive .sidebar-item::after {
+  background-color: #20331D !important;
+}
+
+.clinic-olive .sidebar-item:hover {
+  background-color: #DDD9CE !important;
+}
+
+/* 4.3 Primary Buttons & Interactive Controls */
+.clinic-olive .btn-primary,
+.clinic-olive button.btn-primary {
+  background-color: #283F24 !important;
+  color: #FFFFFF !important;
+  border-color: #283F24 !important;
+}
+
+.clinic-olive .btn-primary:hover,
+.clinic-olive button.btn-primary:hover {
+  background-color: #35542F !important;
+  border-color: #35542F !important;
+}
+
+.clinic-olive .btn-primary:active,
+.clinic-olive button.btn-primary:active {
+  background-color: #20331D !important;
+  border-color: #20331D !important;
+}
+
+.clinic-olive .btn-primary:disabled,
+.clinic-olive button.btn-primary:disabled {
+  background-color: #9A9E91 !important;
+  border-color: #9A9E91 !important;
+  opacity: 0.6;
+}
+
+/* 4.4 Blue-to-Olive Utility Mappings */
+.clinic-olive .bg-blue-600,
+.clinic-olive .bg-sky-600,
+.clinic-olive .bg-blue-500,
+.clinic-olive .bg-sky-500,
+.clinic-olive .bg-indigo-600,
+.clinic-olive .bg-blue-700 {
+  background-color: #283F24 !important;
+  color: #FFFFFF !important;
+}
+
+.clinic-olive .bg-blue-600:hover,
+.clinic-olive .bg-sky-600:hover,
+.clinic-olive .bg-blue-500:hover,
+.clinic-olive .bg-sky-500:hover,
+.clinic-olive .bg-indigo-600:hover,
+.clinic-olive .bg-blue-700:hover {
+  background-color: #35542F !important;
+}
+
+.clinic-olive .bg-blue-600:active,
+.clinic-olive .bg-sky-600:active,
+.clinic-olive .bg-blue-500:active {
+  background-color: #20331D !important;
+}
+
+.clinic-olive .text-blue-600,
+.clinic-olive .text-sky-600,
+.clinic-olive .text-blue-500,
+.clinic-olive .text-sky-500,
+.clinic-olive .text-blue-700,
+.clinic-olive .text-sky-700,
+.clinic-olive .text-indigo-600 {
+  color: #283F24 !important;
+}
+
+.clinic-olive .text-blue-400,
+.clinic-olive .text-sky-400 {
+  color: #4F6F4A !important;
+}
+
+.clinic-olive .border-blue-500,
+.clinic-olive .border-sky-500,
+.clinic-olive .border-blue-600,
+.clinic-olive .border-sky-600,
+.clinic-olive .border-blue-200,
+.clinic-olive .border-sky-200,
+.clinic-olive .border-blue-400\/40,
+.clinic-olive .border-blue-500\/30 {
+  border-color: #62745D !important;
+}
+
+.clinic-olive .bg-blue-50,
+.clinic-olive .bg-sky-50,
+.clinic-olive .bg-blue-100,
+.clinic-olive .bg-sky-100,
+.clinic-olive .bg-blue-500\/10,
+.clinic-olive .bg-sky-500\/10,
+.clinic-olive .bg-blue-900\/30,
+.clinic-olive .bg-sky-900\/40,
+.clinic-olive .bg-blue-100\/50,
+.clinic-olive .bg-sky-500\/20 {
+  background-color: #E4EBE0 !important;
+}
+
+.clinic-olive .focus\:ring-blue-500:focus,
+.clinic-olive .focus\:ring-sky-500:focus {
+  --tw-ring-color: rgba(40, 63, 36, 0.25) !important;
+}
+
+/* 4.5 Olive Linear Gradients */
+.clinic-olive .bg-gradient-olive,
+.clinic-olive .bg-gradient-to-r.from-slate-900.via-sky-950,
+.clinic-olive .bg-gradient-to-r.from-blue-600.via-indigo-500 {
+  background: linear-gradient(180deg, #20331D 0%, #283F24 50%, #35542F 100%) !important;
+}
+
+/* 4.6 Tables: Selected Row & Hover */
+.clinic-olive tr.interactive-row:hover,
+.clinic-olive tr.hover-row:hover,
+.clinic-olive tr.selected-row,
+.clinic-olive tr[data-selected="true"] {
+  background-color: #E4EBE0 !important;
+}
+
+.clinic-olive th .sorting-icon,
+.clinic-olive th svg {
+  color: #283F24;
+}
+
+.clinic-olive .hover-card:hover {
+  border-color: #62745D;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px 0 rgba(40, 63, 36, 0.12);
+}
+
+/* 4.7 Links & Interactive Elements */
+.clinic-olive a {
+  color: #283F24;
+}
+
+.clinic-olive a:hover {
+  color: #20331D;
+}
+
+/* 4.8 Progress Bar, Spinners & Loading */
+.clinic-olive .progress-bar-fill,
+.clinic-olive .loading-spinner,
+.clinic-olive .spinner {
+  background-color: #283F24 !important;
+  border-color: #283F24 !important;
+}
+
 /* Custom Scrollbars for Native Desktop feel */
 ::-webkit-scrollbar {
   width: 6px;
