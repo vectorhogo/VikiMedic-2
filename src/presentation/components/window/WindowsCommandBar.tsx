@@ -289,6 +289,16 @@ export const WindowsCommandBar: React.FC<WindowsCommandBarProps> = ({
             </button>
             <button
               onClick={() => {
+                setActiveModule('medical_staff_center');
+                closeMenu();
+              }}
+              className="w-full text-right px-3 py-1.5 hover:bg-blue-50 dark:hover:bg-blue-900/30 flex items-center gap-2 font-bold"
+            >
+              <UserPlus className="w-3.5 h-3.5 text-emerald-600" />
+              <span>مرکز کادر درمان (پزشکان)</span>
+            </button>
+            <button
+              onClick={() => {
                 setActiveModule('staff');
                 closeMenu();
               }}

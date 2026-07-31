@@ -30,6 +30,7 @@ import {
   Lock,
   LogOut,
   Layers,
+  UserCheck,
 } from 'lucide-react';
 import { useClinic, AppModule } from '../../../application/ClinicContext';
 import { useAuth } from '../../../application/AuthContext';
@@ -142,6 +143,12 @@ export const DesktopSidebar: React.FC = () => {
       labelFA: 'داروخانه و تجهیزات پزشکی',
       icon: <Pill className="w-5 h-5 text-indigo-400" />,
       permissionReq: 'ACCESS_PHARMACY',
+    },
+    {
+      id: 'medical_staff_center',
+      labelFA: 'مرکز کادر درمان',
+      icon: <UserCheck className="w-5 h-5 text-emerald-500" />,
+      permissionReq: 'MANAGE_STAFF',
     },
     {
       id: 'reports',

@@ -53,6 +53,7 @@ export type AppModule =
   | 'doctor_emr'
   | 'financials'
   | 'pharmacy'
+  | 'medical_staff_center'
   | 'reports'
   | 'staff'
   | 'settings'

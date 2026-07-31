@@ -34,6 +34,7 @@ import { QueueModule } from '../../modules/QueueModule';
 import { DoctorEMRModule } from '../../modules/DoctorEMRModule';
 import { FinancialsModule } from '../../modules/FinancialsModule';
 import { PharmacyModule } from '../../modules/PharmacyModule';
+import { MedicalStaffCenterModule } from '../../modules/MedicalStaffCenterModule';
 import { ReportsModule } from '../../modules/ReportsModule';
 import { StaffAccessModule } from '../../modules/StaffAccessModule';
 import { SettingsModule } from '../../modules/SettingsModule';
@@ -72,6 +73,8 @@ export const DesktopLayout: React.FC = () => {
         return <FinancialsModule />;
       case 'pharmacy':
         return <PharmacyModule />;
+      case 'medical_staff_center':
+        return <MedicalStaffCenterModule />;
       case 'reports':
         return <ReportsModule />;
       case 'staff':

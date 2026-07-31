@@ -1268,5 +1268,127 @@ export interface CatalogImportSummaryReport {
   auditLogId: string;
 }
 
+// ============================================================
+// Phase 03.8: Medical Staff Center (مرکز کادر درمان) Types
+// ============================================================
+
+export type StaffCategory =
+  | 'DOCTOR'
+  | 'NURSE'
+  | 'MIDWIFE'
+  | 'PSYCHOLOGIST'
+  | 'NUTRITIONIST'
+  | 'PHYSIOTHERAPIST'
+  | 'TECHNICIAN'
+  | 'OTHER';
+
+export type EmploymentType = 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'ON_CALL';
+
+export type StaffMemberStatus = 'ACTIVE' | 'ON_LEAVE' | 'INACTIVE';
+
+export interface MedicalStaffMember {
+  id: string;
+  fullName: string;
+  medicalCouncilNumber?: string; // شماره نظام پزشکی
+  nationalId: string;
+  phone: string;
+  specialty: string;
+  subSpecialty?: string;
+  staffCategory: StaffCategory;
+  employmentType: EmploymentType;
+  employmentDate: string;
+  status: StaffMemberStatus;
+  photoUrl?: string;
+  notes?: string;
+  baseSalary?: number;
+  workingDays?: string[];
+}
+
+export interface CommissionTier {
+  id: string;
+  minRevenue: number;
+  maxRevenue: number | null; // null for above
+  commissionPercentage: number;
+}
+
+export type CommissionCalculationMethod = 'PERCENTAGE_OF_EXCESS' | 'PERCENTAGE_OF_TOTAL';
+
+export interface StaffContract {
+  id: string;
+  staffId: string;
+  contractNumber: string;
+  startDate: string;
+  endDate: string;
+  visitTariff: number;
+  morningShiftTariff: number;
+  eveningShiftTariff: number;
+  nightShiftTariff: number;
+  revenueThreshold: number; // آستانه درآمد
+  calculationMethod: CommissionCalculationMethod;
+  commissionTiers: CommissionTier[];
+  insuranceSupport: boolean;
+  contractStatus: 'ACTIVE' | 'EXPIRED' | 'DRAFT' | 'TERMINATED';
+  createdAt: string;
+  notes?: string;
+}
+
+export interface ShiftPerformanceRecord {
+  id: string;
+  shiftDate: string;
+  shiftType: 'MORNING' | 'EVENING' | 'NIGHT';
+  staffId: string;
+  patientsCount: number;
+  visitCount: number;
+  servicesCount: number;
+  medicinesCount: number;
+  totalRevenue: number;
+  insuranceShare: number;
+  cashShare: number;
+  cardShare: number;
+  averageVisitValue: number;
+  workingHours: number;
+  lateArrivalMinutes: number;
+  extraHours: number;
+}
+
+export interface MonthlySettlementRecord {
+  id: string;
+  staffId: string;
+  periodJalali: string; // e.g. "۱۴۰۵-۰۵"
+  totalVisits: number;
+  totalRevenue: number;
+  calculatedCommission: number;
+  bonusAmount: number;
+  penaltyAmount: number;
+  overtimeAmount: number;
+  finalSettlementAmount: number;
+  paymentStatus: 'PENDING' | 'APPROVED' | 'PAID' | 'CANCELLED';
+  paymentDate?: string;
+  paymentMethod?: 'DIRECT_TRANSFER' | 'CHEQUE' | 'CASH';
+  receiptNumber?: string;
+  approvedBy?: string;
+  notes?: string;
+}
+
+export interface StaffScheduleItem {
+  id: string;
+  staffId: string;
+  date: string;
+  shiftType: 'MORNING' | 'EVENING' | 'NIGHT';
+  status: 'SCHEDULED' | 'COMPLETED' | 'VACATION' | 'LEAVE' | 'REPLACED';
+  replacementStaffId?: string;
+  notes?: string;
+}
+
+export interface StaffAuditLogRecord {
+  id: string;
+  timestamp: string;
+  userName: string;
+  action: string;
+  entityType: 'CONTRACT' | 'TARIFF' | 'COMMISSION' | 'SETTLEMENT' | 'SCHEDULE' | 'DOCTOR';
+  details: string;
+}
+
+
 
 
