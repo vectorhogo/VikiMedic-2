@@ -45,6 +45,7 @@ import {
 } from '../domain/types';
 import { LocalStorageManager } from '../infrastructure/storage';
 import { CryptoService } from '../infrastructure/cryptoService';
+import { ModuleIntegrityService } from '../infrastructure/moduleIntegrityService';
 
 export type AppModule =
   | 'dashboard'
@@ -202,6 +203,7 @@ interface ClinicContextType {
     paymentMethod: PaymentMethod | 'MIXED',
     paymentDetails?: PatientOrder['paymentDetails']
   ) => PatientOrder;
+  reopenPatientOrder: (orderId: string, reason?: string) => PatientOrder | null;
   printOrderReceipt: (orderId: string, reason?: string) => void;
   getOrdersForPatient: (patientId: string) => PatientOrder[];
   calculateOrderTotals: (
@@ -264,9 +266,10 @@ interface ClinicContextType {
 const ClinicContext = createContext<ClinicContextType | null>(null);
 
 export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // Initialize Storage seed on mount
+  // Initialize Storage seed & run Module Integrity Startup Check on mount
   useEffect(() => {
     LocalStorageManager.initialize();
+    ModuleIntegrityService.runStartupValidation();
     if (LocalStorageManager.isFirstRunOrFreshReset()) {
       setIsSetupWizardOpen(true);
     }
@@ -1159,6 +1162,54 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     return updatedOrder;
   };
 
+  const reopenPatientOrder = (orderId: string, reason?: string): PatientOrder | null => {
+    const targetOrder =
+      patientOrders.find((o) => o.id === orderId) ||
+      LocalStorageManager.getPatientOrders().find((o: PatientOrder) => o.id === orderId);
+
+    if (!targetOrder) {
+      addNotification('سفارش مورد نظر یافت نشد.', 'warning');
+      return null;
+    }
+
+    const nowFa =
+      new Date().toLocaleDateString('fa-IR') +
+      ' - ' +
+      new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' });
+
+    const modLog = {
+      id: 'mod-' + Date.now() + Math.random().toString(36).substring(2, 6),
+      orderId,
+      modifiedBy: `${activeUser.fullName} (${activeUser.role})`,
+      userRole: activeUser.role,
+      action: 'CANCEL_PAYMENT' as OrderModificationAction,
+      oldValue: 'PAID (تسویه‌شده)',
+      newValue: 'DRAFT (بازگشایی شده جهت ویرایش)',
+      reason: reason || 'ابطال پرداخت و بازگشایی فاکتور جهت ویرایش مجدد',
+      timestamp: nowFa,
+    };
+
+    const reopenedOrder: PatientOrder = {
+      ...targetOrder,
+      status: 'DRAFT',
+      paidAt: undefined,
+      updatedAt: nowFa,
+      modificationLogs: [modLog, ...(targetOrder.modificationLogs || [])],
+    };
+
+    setPatientOrders((prev) => {
+      const exists = prev.some((o) => o.id === orderId);
+      if (exists) {
+        return prev.map((o) => (o.id === orderId ? reopenedOrder : o));
+      }
+      return [reopenedOrder, ...prev];
+    });
+    LocalStorageManager.savePatientOrder(reopenedOrder);
+
+    addNotification(`پرداخت فاکتور ${reopenedOrder.orderNumber} با موفقیت ابطال و جهت ویرایش بازگشایی شد.`, 'success');
+    return reopenedOrder;
+  };
+
   const printOrderReceipt = (orderId: string, reason?: string) => {
     const target =
       patientOrders.find((o) => o.id === orderId) ||
@@ -1764,6 +1815,7 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         createPatientOrder,
         updatePatientOrder,
         finalizeOrderAndPay,
+        reopenPatientOrder,
         printOrderReceipt,
         getOrdersForPatient,
         calculateOrderTotals,

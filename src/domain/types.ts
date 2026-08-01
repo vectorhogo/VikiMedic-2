@@ -235,7 +235,7 @@ export interface SystemBackupRecord {
 
 export type AccountStatus = 'ACTIVE' | 'INACTIVE' | 'SUSPENDED' | 'LOCKED' | 'ARCHIVED';
 
-export type EmploymentType = 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'TEMPORARY' | 'OTHER';
+export type EmploymentType = 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'ON_CALL' | 'TEMPORARY' | 'OTHER';
 
 export interface UserStatusHistoryItem {
   id: string;
@@ -958,7 +958,9 @@ export type OrderModificationAction =
   | 'EDIT_PRICE'
   | 'APPLY_DISCOUNT'
   | 'CHANGE_INSURANCE'
-  | 'STATUS_CHANGE';
+  | 'STATUS_CHANGE'
+  | 'CANCEL_PAYMENT'
+  | 'REOPEN_ORDER';
 
 export interface OrderModificationLog {
   id: string;
@@ -1281,8 +1283,6 @@ export type StaffCategory =
   | 'PHYSIOTHERAPIST'
   | 'TECHNICIAN'
   | 'OTHER';
-
-export type EmploymentType = 'FULL_TIME' | 'PART_TIME' | 'CONTRACT' | 'ON_CALL';
 
 export type StaffMemberStatus = 'ACTIVE' | 'ON_LEAVE' | 'INACTIVE';
 

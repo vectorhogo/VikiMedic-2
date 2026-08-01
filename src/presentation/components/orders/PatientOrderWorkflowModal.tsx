@@ -2,7 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
   X,
   Plus,
+  Minus,
   Trash2,
+  Edit3,
   Search,
   CheckCircle2,
   AlertTriangle,
@@ -23,6 +25,12 @@ import {
   Pill,
   Stethoscope,
   Lock,
+  Unlock,
+  RotateCcw,
+  PackageX,
+  Info,
+  Check,
+  UserCog,
 } from 'lucide-react';
 import { useClinic } from '../../../application/ClinicContext';
 import {
@@ -56,6 +64,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
     createPatientOrder,
     updatePatientOrder,
     finalizeOrderAndPay,
+    reopenPatientOrder,
     calculateOrderTotals,
     addNotification,
   } = useClinic();
@@ -82,12 +91,45 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
   const activeOrder = order || existingDraft;
   const isPaid = activeOrder?.status === 'PAID';
 
+  // Permission Checks
+  const isAccountant = activeUser.role === 'ACCOUNTANT' || (activeUser.role as string) === 'FINANCIAL_STAFF';
+  const isAdmin =
+    activeUser.role === 'ADMINISTRATOR' ||
+    activeUser.role === 'SUPER_ADMIN' ||
+    (activeUser.role as string) === 'ADMIN' ||
+    (activeUser.role as string) === 'RECEPTION_LEAD';
+  const canEdit = !isPaid && !isAccountant;
+  const canReopen = isPaid && isAdmin;
+
   const [activeOrderId, setActiveOrderId] = useState<string | null>(activeOrder ? activeOrder.id : null);
   const [items, setItems] = useState<PatientOrderItem[]>(activeOrder ? activeOrder.items : []);
   const [overallDiscount, setOverallDiscount] = useState<number>(activeOrder ? activeOrder.totalDiscount : 0);
   const [notes, setNotes] = useState<string>(activeOrder ? activeOrder.notes || '' : '');
   const [modificationReason, setModificationReason] = useState<string>('');
   const [lastAutoSaveTime, setLastAutoSaveTime] = useState<string | null>(null);
+
+  // Item Removal Confirmation Modal State
+  const [itemToRemoveConfirm, setItemToRemoveConfirm] = useState<PatientOrderItem | null>(null);
+
+  // Undo Toast State (10 seconds timer)
+  const [removedUndoState, setRemovedUndoState] = useState<{
+    item: PatientOrderItem;
+    index: number;
+    expiresAt: number;
+  } | null>(null);
+  const [undoSecondsRemaining, setUndoSecondsRemaining] = useState<number>(10);
+
+  // Item Edit Modal State (✎ Action)
+  const [editingItem, setEditingItem] = useState<PatientOrderItem | null>(null);
+  const [editQty, setEditQty] = useState<number>(1);
+  const [editUnitPrice, setEditUnitPrice] = useState<number>(0);
+  const [editDiscount, setEditDiscount] = useState<number>(0);
+  const [editInsuranceShare, setEditInsuranceShare] = useState<number>(0);
+  const [editInstructions, setEditInstructions] = useState<string>('');
+
+  // Payment Reversal / Reopen Invoice Modal State
+  const [showReopenModal, setShowReopenModal] = useState<boolean>(false);
+  const [reopenReasonText, setReopenReasonText] = useState<string>('');
 
   // Search & Catalog Filter UI State
   const [searchTerm, setSearchTerm] = useState('');
@@ -109,12 +151,22 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape' && isOpen) {
-        onClose();
+        if (itemToRemoveConfirm) {
+          setItemToRemoveConfirm(null);
+        } else if (editingItem) {
+          setEditingItem(null);
+        } else if (showReopenModal) {
+          setShowReopenModal(false);
+        } else if (showCheckoutDialog) {
+          setShowCheckoutDialog(false);
+        } else {
+          onClose();
+        }
       }
     };
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, onClose]);
+  }, [isOpen, itemToRemoveConfirm, editingItem, showReopenModal, showCheckoutDialog, onClose]);
 
   // Sync state when modal opens or active order changes
   useEffect(() => {
@@ -132,6 +184,21 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
       }
     }
   }, [isOpen, activeOrder?.id]);
+
+  // Undo Countdown Timer Effect
+  useEffect(() => {
+    if (!removedUndoState) return;
+
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((removedUndoState.expiresAt - Date.now()) / 1000));
+      setUndoSecondsRemaining(remaining);
+      if (remaining <= 0) {
+        setRemovedUndoState(null);
+      }
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, [removedUndoState]);
 
   // Auto-Save Draft logic (every 10 seconds)
   const saveDraft = (isSilent: boolean = false): PatientOrder | null => {
@@ -191,7 +258,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
 
   if (!isOpen) return null;
 
-  // Calculate live totals
+  // Calculate live totals instantly
   const totals = calculateOrderTotals(items, overallDiscount);
 
   // Filter Catalog Items
@@ -243,8 +310,12 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
 
   // Add Item from Catalog
   const handleAddItemFromCatalog = (catItem: CatalogItem) => {
-    if (isPaid) {
-      addNotification('اطلاعات مالی این فاکتور قفل گردیده است.', 'warning');
+    if (!canEdit) {
+      if (isPaid) {
+        addNotification('اطلاعات مالی این فاکتور قفل گردیده است.', 'warning');
+      } else if (isAccountant) {
+        addNotification('حسابدار فقط دسترسی مشاهده دارد.', 'warning');
+      }
       return;
     }
 
@@ -279,69 +350,226 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
       createdAt: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
     };
 
-    setItems((prev) => [...prev, newItem]);
-    addNotification(`آیتم ${catItem.name} به پیش‌نویس سفارش اضافه شد.`, 'info');
+    const updatedItems = [...items, newItem];
+    setItems(updatedItems);
+
+    if (activeOrderId && activeOrder) {
+      updatePatientOrder(
+        activeOrderId,
+        { ...activeOrder, items: updatedItems },
+        'ADD_ITEM',
+        `افزودن ${catItem.name} به سفارش`
+      );
+    }
+
+    addNotification(`آیتم ${catItem.name} به سفارش اضافه شد.`, 'info');
   };
 
-  // Remove Item
-  const handleRemoveItem = (itemId: string) => {
-    if (isPaid) return;
-    setItems((prev) => prev.filter((i) => i.id !== itemId));
+  // Prompt Remove Item Confirmation
+  const handlePromptRemoveItem = (item: PatientOrderItem) => {
+    if (!canEdit) return;
+    setItemToRemoveConfirm(item);
   };
 
-  // Update Item Quantity
+  // Confirm Remove Item & Start 10s Undo Timer
+  const handleConfirmRemoveItem = () => {
+    if (!itemToRemoveConfirm) return;
+
+    const target = itemToRemoveConfirm;
+    const targetIndex = items.findIndex((i) => i.id === target.id);
+    const updatedItems = items.filter((i) => i.id !== target.id);
+
+    setItems(updatedItems);
+
+    if (activeOrderId && activeOrder) {
+      updatePatientOrder(
+        activeOrderId,
+        { ...activeOrder, items: updatedItems },
+        'REMOVE_ITEM',
+        `حذف خدمت/دارو: ${target.itemName}`
+      );
+    }
+
+    // Set 10-second Undo toast
+    setRemovedUndoState({
+      item: target,
+      index: targetIndex >= 0 ? targetIndex : updatedItems.length,
+      expiresAt: Date.now() + 10000,
+    });
+    setUndoSecondsRemaining(10);
+    setItemToRemoveConfirm(null);
+
+    addNotification(`آیتم «${target.itemName}» از سفارش حذف شد.`, 'info');
+  };
+
+  // Undo Remove Item
+  const handleUndoRemove = () => {
+    if (!removedUndoState) return;
+
+    const { item, index } = removedUndoState;
+    setItems((prev) => {
+      const next = [...prev];
+      if (index >= 0 && index <= next.length) {
+        next.splice(index, 0, item);
+      } else {
+        next.push(item);
+      }
+      return next;
+    });
+
+    if (activeOrderId && activeOrder) {
+      updatePatientOrder(
+        activeOrderId,
+        { ...activeOrder, items: [...items, item] },
+        'ADD_ITEM',
+        `بازگردانی (Undo) خدمت/دارو: ${item.itemName}`
+      );
+    }
+
+    addNotification(`آیتم «${item.itemName}» به سفارش بازگردانده شد.`, 'success');
+    setRemovedUndoState(null);
+  };
+
+  // Update Item Quantity (➕ / ➖)
   const handleUpdateItemQuantity = (itemId: string, newQty: number) => {
-    if (isPaid || newQty < 1) return;
-    setItems((prev) =>
-      prev.map((i) => {
-        if (i.id === itemId) {
-          const gross = i.unitPrice * newQty;
-          const coveragePct = i.insuranceShare > 0 ? Math.round((i.insuranceShare / i.totalGross) * 100) : 0;
-          const insShare = Math.round((gross * coveragePct) / 100);
-          const patShare = gross - insShare;
-          return {
-            ...i,
-            quantity: newQty,
-            totalGross: gross,
-            insuranceShare: insShare,
-            patientShare: patShare,
-            totalNet: Math.max(0, patShare - (i.discount || 0)),
-          };
-        }
-        return i;
-      })
-    );
+    if (!canEdit) return;
+    if (newQty < 1) {
+      const target = items.find((i) => i.id === itemId);
+      if (target) {
+        handlePromptRemoveItem(target);
+      }
+      return;
+    }
+
+    const updatedItems = items.map((i) => {
+      if (i.id === itemId) {
+        const gross = i.unitPrice * newQty;
+        const coveragePct = i.totalGross > 0 && i.insuranceShare > 0
+          ? (i.insuranceShare / i.totalGross)
+          : 0;
+        const insShare = Math.round(gross * coveragePct);
+        const patShare = Math.max(0, gross - insShare);
+        return {
+          ...i,
+          quantity: newQty,
+          totalGross: gross,
+          insuranceShare: insShare,
+          patientShare: patShare,
+          totalNet: Math.max(0, patShare - (i.discount || 0)),
+        };
+      }
+      return i;
+    });
+
+    setItems(updatedItems);
+
+    if (activeOrderId && activeOrder) {
+      const itemObj = items.find((i) => i.id === itemId);
+      updatePatientOrder(
+        activeOrderId,
+        { ...activeOrder, items: updatedItems },
+        'EDIT_QUANTITY',
+        `تغییر تعداد ${itemObj?.itemName || ''} به ${newQty}`
+      );
+    }
   };
 
-  // Update Item Custom Discount
+  // Open Edit Item Modal (✎ Button)
+  const handleOpenEditItemModal = (item: PatientOrderItem) => {
+    if (!canEdit) return;
+    setEditingItem(item);
+    setEditQty(item.quantity);
+    setEditUnitPrice(item.unitPrice);
+    setEditDiscount(item.discount || 0);
+    setEditInsuranceShare(item.insuranceShare);
+    setEditInstructions(item.instructions || '');
+  };
+
+  // Save Edit Item Changes
+  const handleSaveItemEdit = () => {
+    if (!editingItem || !canEdit) return;
+
+    const newGross = editUnitPrice * editQty;
+    const newInsShare = Math.min(newGross, Math.max(0, editInsuranceShare));
+    const newPatShare = Math.max(0, newGross - newInsShare);
+    const newNet = Math.max(0, newPatShare - editDiscount + (editingItem.tax || 0));
+
+    const updatedItems = items.map((i) => {
+      if (i.id === editingItem.id) {
+        return {
+          ...i,
+          unitPrice: editUnitPrice,
+          quantity: editQty,
+          totalGross: newGross,
+          insuranceShare: newInsShare,
+          patientShare: newPatShare,
+          discount: editDiscount,
+          totalNet: newNet,
+          instructions: editInstructions,
+        };
+      }
+      return i;
+    });
+
+    setItems(updatedItems);
+
+    if (activeOrderId && activeOrder) {
+      updatePatientOrder(
+        activeOrderId,
+        { ...activeOrder, items: updatedItems },
+        'EDIT_PRICE',
+        `ویرایش مشخصات، قیمت یا تخفیف آیتم ${editingItem.itemName}`
+      );
+    }
+
+    addNotification(`مشخصات آیتم «${editingItem.itemName}» با موفقیت ویرایش گردید.`, 'success');
+    setEditingItem(null);
+  };
+
+  // Update Item Custom Discount directly from table
   const handleUpdateItemDiscount = (itemId: string, discountVal: number) => {
-    if (isPaid) return;
-    setItems((prev) =>
-      prev.map((i) => {
-        if (i.id === itemId) {
-          return {
-            ...i,
-            discount: discountVal,
-            totalNet: Math.max(0, i.patientShare - discountVal + (i.tax || 0)),
-          };
-        }
-        return i;
-      })
-    );
+    if (!canEdit) return;
+    const safeDiscount = Math.max(0, discountVal);
+    const updatedItems = items.map((i) => {
+      if (i.id === itemId) {
+        return {
+          ...i,
+          discount: safeDiscount,
+          totalNet: Math.max(0, i.patientShare - safeDiscount + (i.tax || 0)),
+        };
+      }
+      return i;
+    });
+
+    setItems(updatedItems);
   };
 
   // Update Item Instructions / Dosage
   const handleUpdateItemInstructions = (itemId: string, inst: string) => {
-    if (isPaid) return;
+    if (!canEdit) return;
     setItems((prev) =>
       prev.map((i) => (i.id === itemId ? { ...i, instructions: inst } : i))
     );
   };
 
+  // Execute Reopen Payment (Payment Reversal)
+  const handleExecuteReopenPayment = () => {
+    if (!activeOrderId || !canReopen) return;
+    const result = reopenPatientOrder(activeOrderId, reopenReasonText || 'ابطال پرداخت و بازگشایی توسط مدیریت');
+    if (result) {
+      setItems(result.items || []);
+      setOverallDiscount(result.totalDiscount || 0);
+      setShowReopenModal(false);
+      setReopenReasonText('');
+    }
+  };
+
   // Save Draft Click
   const handleSaveOrder = () => {
-    if (isPaid) {
-      addNotification('این سفارش تسویه نهایی گردیده و قابل تغییر نیست.', 'warning');
+    if (!canEdit) {
+      if (isPaid) {
+        addNotification('این سفارش تسویه نهایی گردیده و قابل تغییر نیست.', 'warning');
+      }
       return;
     }
     const saved = saveDraft(false);
@@ -414,7 +642,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
   };
 
   return (
-    <div className="fixed inset-0 z-[4000] z-modal-backdrop bg-slate-950/70 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-hidden animate-in fade-in duration-150">
+    <div className="fixed inset-0 z-[4000] z-modal-backdrop bg-slate-950/75 backdrop-blur-md flex items-center justify-center p-2 sm:p-4 overflow-hidden animate-in fade-in duration-150">
       <div className="responsive-modal-container bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-3xl shadow-2xl flex flex-col overflow-hidden text-[var(--text-main)] z-[4010] z-modal-dialog animate-in zoom-in-95 duration-200">
         
         {/* STICKY HEADER */}
@@ -426,7 +654,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="font-bold text-sm sm:text-base text-white">
-                  سفارش بالینی و صورتحساب درمان بیمار
+                  ویرایشگر سفارش بالینی و صورتحساب پذیرش (Reception Order Editor)
                 </h2>
                 {activeOrder && (
                   <span className="px-2.5 py-0.5 text-xs font-mono font-medium bg-blue-500/20 text-blue-300 rounded-md border border-blue-500/30">
@@ -435,16 +663,16 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
                 )}
                 {isPaid ? (
                   <span className="px-2.5 py-0.5 text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 rounded-md flex items-center gap-1">
-                    <Lock className="w-3 h-3" /> تسویه‌شده (قفل مالی)
+                    <Lock className="w-3 h-3 text-amber-400" /> تسویه‌شده (قفل مالی)
                   </span>
                 ) : (
                   <span className="px-2.5 py-0.5 text-[10px] font-bold bg-sky-500/20 text-sky-300 border border-sky-500/40 rounded-md">
-                    پیش‌نویس فعال
+                    پیش‌نویس قابل ویرایش
                   </span>
                 )}
               </div>
               <p className="text-[11px] text-slate-300">
-                مدیریت اقلام خدمات، داروها، فرانشیز بیمه و ذخیره خودمختار تا تسویه نهایی
+                مدیریت اقلام خدمات، داروها، حذف، ویرایش تعداد و محاسبه لحظه‌ای تعرفه و سهم بیمه
               </p>
             </div>
           </div>
@@ -464,7 +692,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
                 onClick={() => setShowHistory(!showHistory)}
                 className="px-3 py-1.5 text-xs font-medium bg-slate-800 hover:bg-slate-700 text-slate-200 rounded-xl flex items-center gap-1.5 transition border border-slate-700"
               >
-                <History className="w-3.5 h-3.5" />
+                <History className="w-3.5 h-3.5 text-amber-400" />
                 <span>سوابق تغییرات ({activeOrder.modificationLogs?.length || 0})</span>
               </button>
             )}
@@ -479,14 +707,34 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
           </div>
         </div>
 
-        {/* LOCKED BANNER IF PAID */}
+        {/* LOCKED BANNER & REOPEN ACTION (IF PAID) */}
         {isPaid && (
-          <div className="px-6 py-2.5 bg-amber-500/10 border-b border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-bold flex items-center justify-between">
+          <div className="px-6 py-2.5 bg-amber-500/10 border-b border-amber-500/20 text-amber-700 dark:text-amber-300 text-xs font-bold flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
-              <Lock className="w-4 h-4 text-amber-500" />
-              <span>این سفارش تسویه نهایی گردیده و اطلاعات مالی آن قفل می‌باشد.</span>
+              <Lock className="w-4 h-4 text-amber-500 shrink-0" />
+              <span>فاکتور نهایی‌شده - فقط خواندنی (Invoice Finalized - Read Only)</span>
             </div>
-            <span className="bg-amber-500/20 px-2 py-0.5 rounded text-[10px] font-mono">STATUS: PAID</span>
+
+            {canReopen && (
+              <button
+                type="button"
+                onClick={() => setShowReopenModal(true)}
+                className="px-3 py-1 text-[11px] font-bold bg-amber-600 hover:bg-amber-500 text-white rounded-lg transition flex items-center gap-1.5 shadow"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>ابطال پرداخت و بازگشایی فاکتور (Cancel Payment & Reopen)</span>
+              </button>
+            )}
+          </div>
+        )}
+
+        {/* ACCOUNTANT READ ONLY BANNER */}
+        {isAccountant && !isPaid && (
+          <div className="px-6 py-2 bg-blue-500/10 border-b border-blue-500/20 text-blue-700 dark:text-blue-300 text-xs font-semibold flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <UserCog className="w-4 h-4 text-blue-500" />
+              <span>دسترسی حسابداری: فقط خواندنی (Read Only)</span>
+            </div>
           </div>
         )}
 
@@ -537,7 +785,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
         </div>
 
         {/* MAIN BODY (RESPONSIVE GRID) */}
-        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-0">
+        <div className="flex-1 overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-0 relative">
           
           {/* LEFT COLUMN: SELECTED ORDER ITEMS & STICKY SIDE SUMMARY (7 COLS) */}
           <div className="lg:col-span-7 p-4 sm:p-5 flex flex-col border-b lg:border-b-0 lg:border-l border-[var(--border-subtle)] overflow-y-auto modal-content-scrollable">
@@ -545,101 +793,145 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
             <div className="flex items-center justify-between mb-2.5">
               <h3 className="font-bold text-xs sm:text-sm flex items-center gap-2">
                 <FileText className="w-4 h-4 text-blue-500" />
-                <span>لیست اقلام پیش‌نویس صورتحساب ({items.length})</span>
+                <span>اقلام سفارش و صورتحساب درمان ({items.length})</span>
               </h3>
               <span className="text-[10px] text-slate-400">
-                {isPaid ? 'اطلاعات قفل شده است' : 'امکان تغییر تعداد، دستور مصرف و تخفیف'}
+                {isPaid ? 'اطلاعات قفل شده است' : 'ویرایش تعداد، تخفیف، سهم بیمه و حذف'}
               </span>
             </div>
 
-            {/* Selected Items Table Container */}
-            <div className="border border-[var(--border-subtle)] rounded-2xl overflow-hidden mb-4 bg-[var(--bg-app)] min-h-[160px] max-h-[260px] overflow-y-auto">
+            {/* Selected Items Table / Cards Container */}
+            <div className="border border-[var(--border-subtle)] rounded-2xl overflow-hidden mb-4 bg-[var(--bg-app)] min-h-[180px] max-h-[300px] overflow-y-auto relative">
               {items.length === 0 ? (
-                <div className="h-full flex flex-col items-center justify-center p-8 text-center text-slate-400 space-y-1">
-                  <Sparkles className="w-8 h-8 text-slate-400 stroke-[1.5]" />
-                  <p className="text-xs font-bold text-[var(--text-main)]">هیچ خدمت یا دارویی انتخاب نشده است</p>
-                  <p className="text-[11px] text-[var(--text-muted)]">
-                    از پنل سمت چپ کاتالوگ خدمات را جستجو و روی آن کلیک کنید.
+                /* EMPTY ORDER STATE */
+                <div className="h-full flex flex-col items-center justify-center p-8 text-center text-slate-400 space-y-2">
+                  <PackageX className="w-10 h-10 text-slate-400 stroke-[1.5] animate-bounce" />
+                  <p className="text-xs font-bold text-[var(--text-main)]">
+                    هیچ خدمت یا دارویی به سفارش اضافه نشده است. (No services or medicines added.)
+                  </p>
+                  <p className="text-[11px] text-[var(--text-muted)] max-w-sm">
+                    از مرورگر سمت چپ خدمات یا داروها را جستجو کرده و با کلیک روی آنها، اقلام مورد نیاز بیمار را اضافه نمایید.
                   </p>
                 </div>
               ) : (
                 <table className="w-full text-right text-xs">
-                  <thead className="bg-slate-900 text-white sticky top-0 border-b border-slate-800 text-[11px]">
+                  <thead className="bg-slate-900 text-white sticky top-0 border-b border-slate-800 text-[11px] z-10">
                     <tr>
                       <th className="py-2.5 px-3">عنوان خدمت / دارو</th>
-                      <th className="py-2.5 px-2 text-center">تعداد</th>
                       <th className="py-2.5 px-2 text-center">تعرفه</th>
+                      <th className="py-2.5 px-2 text-center">تعداد</th>
                       <th className="py-2.5 px-2 text-center">سهم بیمه</th>
-                      <th className="py-2.5 px-2 text-center">سهم بیمار</th>
                       <th className="py-2.5 px-2 text-center">تخفیف</th>
-                      {!isPaid && <th className="py-2.5 px-2 text-center">حذف</th>}
+                      <th className="py-2.5 px-2 text-center">مبلغ نهایی (بیمار)</th>
+                      <th className="py-2.5 px-2 text-center">عملیات (Actions)</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--border-subtle)] font-mono text-[11px]">
                     {items.map((item) => (
                       <tr key={item.id} className="hover:bg-blue-500/5 transition">
-                        <td className="py-2 px-3 font-sans">
-                          <div className="font-bold text-[var(--text-main)]">{item.itemName}</div>
-                          <div className="text-[10px] text-slate-400 font-mono">کد: {item.itemCode}</div>
+                        {/* ITEM NAME & CATEGORY & INSTRUCTIONS */}
+                        <td className="py-2 px-3 font-sans max-w-[180px]">
+                          <div className="font-bold text-[var(--text-main)] flex items-center gap-1.5 flex-wrap">
+                            <span>{item.itemName}</span>
+                            <span className="text-[9px] px-1.5 py-0.2 rounded bg-blue-500/10 text-blue-500 font-mono">
+                              {item.category}
+                            </span>
+                          </div>
+                          <div className="text-[10px] text-slate-400 font-mono mt-0.5">
+                            کد: {item.itemCode}
+                          </div>
                           <input
                             type="text"
                             value={item.instructions || ''}
                             onChange={(e) => handleUpdateItemInstructions(item.id, e.target.value)}
                             placeholder="دستور مصرف / توضیحات..."
-                            disabled={isPaid}
-                            className="w-full mt-1 px-2 py-0.5 text-[10px] bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded text-[var(--text-main)] placeholder-slate-400"
+                            disabled={!canEdit}
+                            className="w-full mt-1 px-2 py-0.5 text-[10px] bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded text-[var(--text-main)] placeholder-slate-400 disabled:opacity-60"
                           />
                         </td>
+
+                        {/* UNIT PRICE */}
+                        <td className="py-2 px-2 text-center font-bold">
+                          {item.unitPrice.toLocaleString('fa-IR')}
+                        </td>
+
+                        {/* QUANTITY CONTROLS (➕ / ➖) */}
                         <td className="py-2 px-2 text-center">
                           <div className="flex items-center justify-center gap-1">
-                            {!isPaid && (
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateItemQuantity(item.id, item.quantity - 1)}
-                                className="w-5 h-5 rounded bg-slate-700 text-white flex items-center justify-center hover:bg-slate-600 font-bold"
-                              >
-                                -
-                              </button>
-                            )}
-                            <span className="w-5 text-center font-bold">{item.quantity}</span>
-                            {!isPaid && (
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateItemQuantity(item.id, item.quantity + 1)}
-                                className="w-5 h-5 rounded bg-slate-700 text-white flex items-center justify-center hover:bg-slate-600 font-bold"
-                              >
-                                +
-                              </button>
-                            )}
+                            <button
+                              type="button"
+                              disabled={!canEdit}
+                              onClick={() => handleUpdateItemQuantity(item.id, item.quantity - 1)}
+                              className="w-5 h-5 rounded bg-slate-700 text-white flex items-center justify-center hover:bg-slate-600 font-bold active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={canEdit ? 'کاهش تعداد (➖ Decrease)' : 'فاکتور تسویه‌شده (Invoice Finalized - Read Only)'}
+                            >
+                              <Minus className="w-3 h-3" />
+                            </button>
+                            <span className="w-6 text-center font-bold px-1 py-0.5 bg-[var(--bg-surface)] rounded border border-[var(--border-subtle)]">
+                              {item.quantity}
+                            </span>
+                            <button
+                              type="button"
+                              disabled={!canEdit}
+                              onClick={() => handleUpdateItemQuantity(item.id, item.quantity + 1)}
+                              className="w-5 h-5 rounded bg-slate-700 text-white flex items-center justify-center hover:bg-slate-600 font-bold active:scale-95 transition disabled:opacity-40 disabled:cursor-not-allowed"
+                              title={canEdit ? 'افزایش تعداد (➕ Increase)' : 'فاکتور تسویه‌شده (Invoice Finalized - Read Only)'}
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
                           </div>
                         </td>
-                        <td className="py-2 px-2 text-center font-bold">{item.unitPrice.toLocaleString('fa-IR')}</td>
-                        <td className="py-2 px-2 text-center text-emerald-500 font-bold">
+
+                        {/* INSURANCE SHARE */}
+                        <td className="py-2 px-2 text-center text-emerald-600 dark:text-emerald-400 font-bold">
                           {item.insuranceShare.toLocaleString('fa-IR')}
                         </td>
-                        <td className="py-2 px-2 text-center font-black text-blue-600 dark:text-blue-400">
-                          {item.patientShare.toLocaleString('fa-IR')}
-                        </td>
+
+                        {/* CUSTOM DISCOUNT */}
                         <td className="py-2 px-2 text-center">
                           <input
                             type="number"
                             value={item.discount || 0}
-                            disabled={isPaid}
+                            disabled={!canEdit}
                             onChange={(e) => handleUpdateItemDiscount(item.id, Number(e.target.value))}
                             className="w-14 px-1 py-0.5 text-center text-xs font-mono bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded disabled:opacity-60"
                           />
                         </td>
-                        {!isPaid && (
-                          <td className="py-2 px-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveItem(item.id)}
-                              className="p-1 text-rose-500 hover:bg-rose-500/10 rounded transition"
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </button>
-                          </td>
-                        )}
+
+                        {/* FINAL PRICE (PATIENT SHARE) */}
+                        <td className="py-2 px-2 text-center font-black text-blue-600 dark:text-blue-400">
+                          {item.patientShare.toLocaleString('fa-IR')}
+                        </td>
+
+                        {/* ROW ACTIONS (➕ ➖ ✏ Edit & 🗑 Delete) */}
+                        <td className="py-2 px-2 text-center">
+                          {canEdit ? (
+                            <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleOpenEditItemModal(item)}
+                                className="p-1.5 text-sky-500 hover:bg-sky-500/10 rounded-lg transition border border-sky-500/20"
+                                title="ویرایش کامل آیتم (✏ Edit)"
+                              >
+                                <Edit3 className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handlePromptRemoveItem(item)}
+                                className="p-1.5 text-rose-500 hover:bg-rose-500/10 rounded-lg transition border border-rose-500/20"
+                                title="حذف آیتم از سفارش (🗑 Delete)"
+                              >
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </div>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 text-[9px] font-bold bg-amber-500/10 text-amber-500 border border-amber-500/20 rounded-md whitespace-nowrap">
+                              <Lock className="w-3 h-3" />
+                              <span>فاکتور نهایی (Invoice Finalized - Read Only)</span>
+                            </span>
+                          )}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -656,7 +948,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
                 <input
                   type="number"
                   value={overallDiscount}
-                  disabled={isPaid}
+                  disabled={!canEdit}
                   onChange={(e) => setOverallDiscount(Number(e.target.value))}
                   placeholder="مبلغ تخفیف..."
                   className="w-full px-3 py-1.5 font-mono text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-xl disabled:opacity-60"
@@ -670,7 +962,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
                 <input
                   type="text"
                   value={notes}
-                  disabled={isPaid}
+                  disabled={!canEdit}
                   onChange={(e) => setNotes(e.target.value)}
                   placeholder="نکات بالینی یا مالی..."
                   className="w-full px-3 py-1.5 text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-xl disabled:opacity-60"
@@ -679,7 +971,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
             </div>
 
             {/* Modification Reason if updating order */}
-            {activeOrder && !isPaid && (
+            {activeOrder && canEdit && (
               <div className="mb-3 p-2.5 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs space-y-1">
                 <label className="font-bold text-amber-500 flex items-center gap-1">
                   <AlertTriangle className="w-3.5 h-3.5" />
@@ -689,13 +981,13 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
                   type="text"
                   value={modificationReason}
                   onChange={(e) => setModificationReason(e.target.value)}
-                  placeholder="علت افزودن/حذف خدمات..."
+                  placeholder="علت افزودن/حذف یا تغییر تعداد اقلام..."
                   className="w-full px-3 py-1.5 text-xs bg-[var(--bg-surface)] border border-amber-500/40 rounded-lg"
                 />
               </div>
             )}
 
-            {/* STICKY SIDE SUMMARY PANEL */}
+            {/* STICKY SIDE SUMMARY PANEL & CASHBOX PREVIEW */}
             <div className="mt-auto p-4 rounded-2xl bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 text-white shadow-xl space-y-2 border border-blue-500/30">
               <div className="flex justify-between text-xs text-slate-300 font-medium">
                 <span>جمع کل تعرفه (ناخالص):</span>
@@ -714,8 +1006,8 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
 
               <div className="border-t border-slate-700/80 pt-2 flex items-center justify-between">
                 <div>
-                  <span className="font-bold text-sm text-white block">مبلغ قابل پرداخت بیمار:</span>
-                  <span className="text-[10px] text-slate-400">تسویه نهایی مستقیم با صندوق کلینیک</span>
+                  <span className="font-bold text-sm text-white block">پیش‌نمایش مبلغ دریافتی صندوق:</span>
+                  <span className="text-[10px] text-slate-400">مبلغ خالص سهم بیمار قابل دریافت در صندوق</span>
                 </div>
                 <div className="text-xl sm:text-2xl font-black font-mono text-sky-400 tabular-nums">
                   {totals.totalPatientShare.toLocaleString('fa-IR')}{' '}
@@ -836,7 +1128,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
               ))}
             </div>
 
-            {/* RESPONSIVE MEDICINE / SERVICE CATALOG TABLE */}
+            {/* CATALOG LIST */}
             <div className="flex-1 overflow-y-auto space-y-2 pr-1 max-h-[300px]">
               {filteredCatalog.length === 0 ? (
                 <div className="p-6 text-center text-xs text-[var(--text-muted)]">
@@ -848,7 +1140,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
                     key={catItem.id}
                     onClick={() => handleAddItemFromCatalog(catItem)}
                     className={`p-3 bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-2xl transition shadow-sm flex items-center justify-between group ${
-                      isPaid ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500/50 cursor-pointer'
+                      !canEdit ? 'opacity-50 cursor-not-allowed' : 'hover:border-blue-500/50 cursor-pointer'
                     }`}
                   >
                     <div className="space-y-1">
@@ -947,6 +1239,25 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
 
         </div>
 
+        {/* 10-SECOND UNDO TOAST NOTIFICATION */}
+        {removedUndoState && (
+          <div className="absolute bottom-16 left-1/2 -translate-x-1/2 z-[4200] bg-slate-900 text-white border border-slate-700 rounded-2xl p-3 shadow-2xl flex items-center gap-3 text-xs animate-in slide-in-from-bottom duration-200">
+            <RotateCcw className="w-4 h-4 text-amber-400 animate-spin-slow" />
+            <div>
+              <span className="font-bold text-slate-200">آیتم «{removedUndoState.item.itemName}» حذف شد.</span>
+              <span className="text-[10px] text-amber-400 font-mono ml-2">({undoSecondsRemaining} ثانیه)</span>
+            </div>
+            <button
+              type="button"
+              onClick={handleUndoRemove}
+              className="px-3 py-1 bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold rounded-xl transition flex items-center gap-1 text-[11px]"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>لغو حذف (Undo)</span>
+            </button>
+          </div>
+        )}
+
         {/* STICKY FOOTER */}
         <div className="sticky-modal-footer px-6 py-3.5 bg-slate-900 text-white border-t border-slate-800 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
@@ -998,6 +1309,281 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
         </div>
 
       </div>
+
+      {/* ============================================================ */}
+      {/* REMOVE ITEM CONFIRMATION MODAL */}
+      {/* ============================================================ */}
+      {itemToRemoveConfirm && (
+        <div className="fixed inset-0 z-[5000] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-[var(--bg-surface)] border border-rose-500/30 rounded-3xl shadow-2xl w-full max-w-sm p-6 space-y-4 text-[var(--text-main)] animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 border-b border-[var(--border-subtle)] pb-3">
+              <div className="p-2.5 bg-rose-500/10 text-rose-500 rounded-2xl">
+                <Trash2 className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-[var(--text-main)]">آیا از حذف این خدمت/دارو اطمینان دارید؟</h3>
+                <p className="text-[11px] text-[var(--text-muted)]">Remove this item?</p>
+              </div>
+            </div>
+
+            {/* Item details summary */}
+            <div className="p-3 bg-[var(--bg-app)] rounded-2xl border border-[var(--border-subtle)] space-y-1.5 text-xs font-mono">
+              <div className="flex justify-between">
+                <span className="text-[var(--text-muted)] font-sans">عنوان خدمت/دارو:</span>
+                <span className="font-bold font-sans text-[var(--text-main)]">{itemToRemoveConfirm.itemName}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--text-muted)] font-sans">دسته‌بندی:</span>
+                <span className="font-semibold text-blue-500 font-sans">{itemToRemoveConfirm.category}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-[var(--text-muted)] font-sans">تعداد:</span>
+                <span className="font-bold">{itemToRemoveConfirm.quantity}</span>
+              </div>
+              <div className="flex justify-between border-t border-[var(--border-subtle)] pt-1.5">
+                <span className="text-[var(--text-muted)] font-sans">مبلغ کل (سهم بیمار):</span>
+                <span className="font-bold text-rose-500">{itemToRemoveConfirm.patientShare.toLocaleString('fa-IR')} تومان</span>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                type="button"
+                onClick={() => setItemToRemoveConfirm(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white bg-slate-800 rounded-xl transition"
+              >
+                انصراف (Cancel)
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmRemoveItem}
+                className="px-4 py-2 text-xs font-bold text-white bg-rose-600 hover:bg-rose-500 rounded-xl shadow-md transition flex items-center gap-1.5"
+              >
+                <Trash2 className="w-3.5 h-3.5" />
+                <span>حذف قطعیت (Remove)</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* EDIT ITEM DETAILS MODAL (✎ Action) */}
+      {/* ============================================================ */}
+      {editingItem && (
+        <div className="fixed inset-0 z-[5000] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 text-[var(--text-main)] animate-in zoom-in-95 duration-200">
+            <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="p-2 bg-sky-500/10 text-sky-500 rounded-xl">
+                  <Edit3 className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-[var(--text-main)]">ویرایش مشخصات خدمت / دارو</h3>
+                  <p className="text-[10px] text-slate-400 font-mono">{editingItem.itemName} ({editingItem.itemCode})</p>
+                </div>
+              </div>
+              <button onClick={() => setEditingItem(null)} className="text-slate-400 hover:text-white">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">تعداد (Quantity)</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={editQty}
+                    onChange={(e) => setEditQty(Math.max(1, Number(e.target.value)))}
+                    className="w-full px-3 py-1.5 font-mono text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-xl"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">قیمت واحد (تعرفه)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editUnitPrice}
+                    onChange={(e) => setEditUnitPrice(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-1.5 font-mono text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">سهم تعهد بیمه (تومان)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editInsuranceShare}
+                    onChange={(e) => setEditInsuranceShare(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-1.5 font-mono text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-xl text-emerald-500"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">تخفیف اختصاصی (تومان)</label>
+                  <input
+                    type="number"
+                    min="0"
+                    value={editDiscount}
+                    onChange={(e) => setEditDiscount(Math.max(0, Number(e.target.value)))}
+                    className="w-full px-3 py-1.5 font-mono text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-xl text-amber-500"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[11px] font-bold text-[var(--text-muted)] mb-1">دستور مصرف / توضیحات تکمیلی</label>
+                <input
+                  type="text"
+                  value={editInstructions}
+                  onChange={(e) => setEditInstructions(e.target.value)}
+                  placeholder="نکات بالینی، دوز مصرفی یا ملاحظات..."
+                  className="w-full px-3 py-1.5 text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-xl"
+                />
+              </div>
+
+              {/* Calculated Summary Preview inside edit modal */}
+              <div className="p-3 bg-slate-900 text-white rounded-2xl border border-slate-800 space-y-1 text-[11px] font-mono">
+                <div className="flex justify-between">
+                  <span className="text-slate-400 font-sans">جمع کل ناخالص:</span>
+                  <span>{(editUnitPrice * editQty).toLocaleString('fa-IR')} تومان</span>
+                </div>
+                <div className="flex justify-between text-emerald-400">
+                  <span className="font-sans">سهم بیمه:</span>
+                  <span>- {editInsuranceShare.toLocaleString('fa-IR')} تومان</span>
+                </div>
+                <div className="flex justify-between border-t border-slate-800 pt-1 font-bold text-sky-400">
+                  <span className="font-sans">مبلغ نهایی دریافتی از بیمار:</span>
+                  <span>{Math.max(0, (editUnitPrice * editQty) - editInsuranceShare - editDiscount).toLocaleString('fa-IR')} تومان</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setEditingItem(null)}
+                className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white bg-slate-800 rounded-xl transition"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveItemEdit}
+                className="px-4 py-2 text-xs font-bold text-white bg-sky-600 hover:bg-sky-500 rounded-xl shadow transition flex items-center gap-1.5"
+              >
+                <Check className="w-3.5 h-3.5" />
+                <span>ذخیره تغییرات</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* REOPEN INVOICE / PAYMENT REVERSAL MODAL (ADMIN ONLY) */}
+      {/* ============================================================ */}
+      {showReopenModal && (
+        <div className="fixed inset-0 z-[5000] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in duration-200">
+          <div className="bg-[var(--bg-surface)] border border-amber-500/30 rounded-3xl shadow-2xl w-full max-w-md p-6 space-y-4 text-[var(--text-main)] animate-in zoom-in-95 duration-200">
+            <div className="flex items-center gap-3 border-b border-[var(--border-subtle)] pb-3">
+              <div className="p-2.5 bg-amber-500/10 text-amber-500 rounded-2xl">
+                <RotateCcw className="w-6 h-6" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm text-[var(--text-main)]">ابطال پرداخت و بازگشایی فاکتور جهت ویرایش</h3>
+                <p className="text-[11px] text-[var(--text-muted)]">Cancel Payment & Reopen Order</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-[var(--text-muted)] leading-relaxed">
+              با تایید این عملیات، وضعیت سفارش به پیش‌نویس (DRAFT) تغییر یافته و تمام اقلام مجدداً قابل اضافه، ویرایش یا حذف خواهند بود. کلیه سوابق در لاگ حسابرسی ثبت می‌شود.
+            </p>
+
+            <div>
+              <label className="block text-[11px] font-bold text-[var(--text-main)] mb-1">
+                علت ابطال پرداخت و بازگشایی فاکتور:
+              </label>
+              <input
+                type="text"
+                value={reopenReasonText}
+                onChange={(e) => setReopenReasonText(e.target.value)}
+                placeholder="مثال: اشتباه در ثبت اقلام توسط پذیرش..."
+                className="w-full px-3 py-2 text-xs bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-xl"
+              />
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2">
+              <button
+                type="button"
+                onClick={() => setShowReopenModal(false)}
+                className="px-4 py-2 text-xs font-bold text-slate-400 hover:text-white bg-slate-800 rounded-xl transition"
+              >
+                انصراف
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteReopenPayment}
+                className="px-4 py-2 text-xs font-bold text-white bg-amber-600 hover:bg-amber-500 rounded-xl shadow-md transition flex items-center gap-1.5"
+              >
+                <RotateCcw className="w-3.5 h-3.5" />
+                <span>تأیید ابطال و بازگشایی</span>
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ============================================================ */}
+      {/* ACTIVITY LOG / MODIFICATION HISTORY DRAWER */}
+      {/* ============================================================ */}
+      {showHistory && activeOrder && (
+        <div className="fixed inset-0 z-[5000] bg-slate-950/70 backdrop-blur-sm flex justify-end animate-in fade-in duration-150">
+          <div className="w-full max-w-md bg-[var(--bg-surface)] border-r border-[var(--border-subtle)] h-full p-6 flex flex-col space-y-4 animate-in slide-in-from-right duration-200 text-[var(--text-main)] overflow-y-auto">
+            <div className="flex items-center justify-between border-b border-[var(--border-subtle)] pb-4">
+              <div className="flex items-center gap-2">
+                <History className="w-5 h-5 text-amber-500" />
+                <h3 className="font-bold text-sm text-[var(--text-main)]">سوابق تغییرات و ردپای حسابرسی</h3>
+              </div>
+              <button onClick={() => setShowHistory(false)} className="p-1 text-slate-400 hover:text-white rounded-lg">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+
+            <div className="flex-1 space-y-3 overflow-y-auto">
+              {(!activeOrder.modificationLogs || activeOrder.modificationLogs.length === 0) ? (
+                <div className="p-8 text-center text-xs text-[var(--text-muted)]">
+                  هیچ سابقه تغییراتی ثبت نشده است.
+                </div>
+              ) : (
+                activeOrder.modificationLogs.map((log) => (
+                  <div key={log.id} className="p-3 bg-[var(--bg-app)] border border-[var(--border-subtle)] rounded-2xl text-xs space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-bold text-[11px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-500 font-mono">
+                        {log.action}
+                      </span>
+                      <span className="text-[10px] text-slate-400 font-mono">{log.timestamp}</span>
+                    </div>
+
+                    <div className="font-semibold text-[var(--text-main)]">{log.reason}</div>
+
+                    <div className="text-[10px] text-slate-400 flex justify-between font-mono pt-1 border-t border-[var(--border-subtle)]">
+                      <span>توسط: {log.modifiedBy}</span>
+                      <span>نقش: {log.userRole}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* SMART CHECKOUT CONFIRMATION DIALOG */}
       {showCheckoutDialog && (

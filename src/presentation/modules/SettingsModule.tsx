@@ -35,6 +35,7 @@ import { ConfigProfilesPanel } from '../components/settings/ConfigProfilesPanel'
 import { DisplayPerformancePanel } from '../components/settings/DisplayPerformancePanel';
 import { WorkspaceCustomizationPanel } from '../components/system/WorkspaceCustomizationPanel';
 import { ResetProtectionPanel } from '../components/system/ResetProtectionPanel';
+import { ModuleIntegrityPanel } from '../components/settings/ModuleIntegrityPanel';
 
 export const SettingsModule: React.FC = () => {
   const {
@@ -60,6 +61,7 @@ export const SettingsModule: React.FC = () => {
     | 'reset_protection'
     | 'system_setup'
     | 'system_validation'
+    | 'module_integrity'
     | 'config_profiles'
     | 'display'
     | 'general'
@@ -250,6 +252,18 @@ export const SettingsModule: React.FC = () => {
         </button>
 
         <button
+          onClick={() => setActiveTab('module_integrity')}
+          className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition ${
+            activeTab === 'module_integrity'
+              ? 'bg-[#283F24] text-white shadow-md font-bold'
+              : 'bg-[var(--bg-surface)] hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)]'
+          }`}
+        >
+          <Shield className="w-4 h-4 text-emerald-400" />
+          <span>پایش سلامت ماژول‌ها (Phase 00.5)</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('workspace_customization')}
           className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition ${
             activeTab === 'workspace_customization'
@@ -371,6 +385,9 @@ export const SettingsModule: React.FC = () => {
       {activeTab === 'system_validation' && (
         <SystemValidationPanel onNavigateTab={(tab) => setActiveTab(tab as any)} />
       )}
+
+      {/* Tab 0.15: Module Integrity Checker (Phase 00.5 Core Infrastructure) */}
+      {activeTab === 'module_integrity' && <ModuleIntegrityPanel />}
 
       {/* Tab 0.2: Configuration Profiles (Enterprise Patch 01) */}
       {activeTab === 'config_profiles' && <ConfigProfilesPanel />}

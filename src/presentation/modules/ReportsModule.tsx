@@ -70,6 +70,7 @@ import {
 
 import { useClinic } from '../../application/ClinicContext';
 import { useTheme } from '../ThemeContext';
+import { DoctorScorecardView } from '../components/reports/DoctorScorecardView';
 import {
   ReportDatePreset,
   ReportFilterState,
@@ -1045,7 +1046,7 @@ export const ReportsModule: React.FC = () => {
           { id: 'PATIENT', label: 'آمار مراجعات و بیماران', icon: <Users className="w-4 h-4 text-purple-500" /> },
           { id: 'SERVICE', label: 'تحلیل خدمات و کلینیکال', icon: <Activity className="w-4 h-4 text-teal-500" /> },
           { id: 'MEDICINE', label: 'داروها و تجهیزات', icon: <Pill className="w-4 h-4 text-amber-500" /> },
-          { id: 'DOCTOR', label: 'عملکرد پزشکان', icon: <Stethoscope className="w-4 h-4 text-indigo-500" /> },
+          { id: 'DOCTOR', label: 'کارت امتیازی و عملکرد پزشکان (Doctor Scorecard)', icon: <Stethoscope className="w-4 h-4 text-indigo-500" /> },
           { id: 'SHIFT', label: 'آمار شیفت‌ها', icon: <Clock className="w-4 h-4 text-rose-500" /> },
           { id: 'EMPLOYEE', label: 'کارکرد پرسنل', icon: <ShieldCheck className="w-4 h-4 text-sky-500" /> },
           { id: 'SNAPSHOTS', label: `اسنپ‌شات‌ها (${reportSnapshots.length})`, icon: <Save className="w-4 h-4 text-[var(--text-muted)]" /> },
@@ -1596,12 +1597,7 @@ export const ReportsModule: React.FC = () => {
 
       {/* 9. TAB 6: DOCTOR REPORTS */}
       {activeCategory === 'DOCTOR' && (
-        <div className="bg-[var(--bg-surface)] p-5 rounded-2xl border border-[var(--border-subtle)] shadow-sm space-y-4">
-          <h3 className="text-sm font-bold text-[var(--text-main)] flex items-center gap-2">
-            <Stethoscope className="w-4 h-4 text-indigo-500" />
-            <span>آمار عملکرد و کارکرد مالی پزشکان</span>
-          </h3>
-        </div>
+        <DoctorScorecardView />
       )}
 
       {/* 10. TAB 7: SHIFT REPORTS */}
