@@ -20,6 +20,7 @@ import {
 import { useClinic } from '../../../application/ClinicContext';
 import { useTheme } from '../../ThemeContext';
 import { ROLE_TITLES_FA } from '../../../domain/permissions';
+import { SmartNotificationBell } from '../notification/SmartNotificationBell';
 
 export const DesktopTitleBar: React.FC = () => {
   const {
@@ -63,8 +64,8 @@ export const DesktopTitleBar: React.FC = () => {
 
   return (
     <div className="h-9 bg-slate-900 text-slate-300 flex items-center justify-between px-3 select-none border-b border-slate-800 text-xs font-sans z-40">
-      {/* Right Side: App Brand & Multi-Clinic Switcher */}
-      <div className="flex items-center gap-3">
+      {/* Right Side: App Brand, Smart Notification Bell & Multi-Clinic Switcher */}
+      <div className="flex items-center gap-2">
         {/* VikiMedic Logo with 5-Second Secret Hold Trigger */}
         <div
           onMouseDown={startHold}
@@ -102,7 +103,10 @@ export const DesktopTitleBar: React.FC = () => {
           )}
         </div>
 
-        <div className="h-4 w-px bg-slate-700 mx-1" />
+        {/* Smart Notification Bell (Top Right Header Placement) */}
+        <SmartNotificationBell />
+
+        <div className="h-4 w-px bg-slate-700 mx-0.5" />
 
         {/* Multi-Clinic Selector Dropdown */}
         <div className="relative group">

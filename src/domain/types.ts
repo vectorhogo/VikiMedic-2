@@ -1306,17 +1306,44 @@ export interface MedicalStaffMember {
 
 export interface CommissionTier {
   id: string;
+  tierName?: string;
+  priority?: number;
   minRevenue: number;
   maxRevenue: number | null; // null for above
-  commissionPercentage: number;
+  commissionPercentage: number; // Doctor Percentage
+  clinicPercentage?: number; // Clinic Percentage (100 - commissionPercentage)
+  status?: 'ACTIVE' | 'INACTIVE';
+  description?: string;
+  shiftType?: 'ALL' | 'MORNING' | 'EVENING' | 'NIGHT';
+  fixedAmount?: number; // Optional fixed amount for Fixed/Hybrid mode
 }
 
-export type CommissionCalculationMethod = 'PERCENTAGE_OF_EXCESS' | 'PERCENTAGE_OF_TOTAL';
+export type CommissionCalculationMethod =
+  | 'PERCENTAGE_OF_EXCESS'
+  | 'PERCENTAGE_OF_TOTAL'
+  | 'FIXED_PERCENTAGE'
+  | 'MULTI_LEVEL_PERCENTAGE'
+  | 'FIXED_AMOUNT'
+  | 'HYBRID';
+
+export type DoctorContractScope = 'PERSONAL' | 'DEPARTMENT' | 'CLINIC_DEFAULT';
+
+export interface ContractAuditLog {
+  id: string;
+  contractId: string;
+  action: 'Tier Created' | 'Tier Edited' | 'Tier Deleted' | 'Percentage Changed' | 'Revenue Recalculated' | 'Contract Saved';
+  adminName: string;
+  adminRole: string;
+  timestamp: string;
+  details: string;
+}
 
 export interface StaffContract {
   id: string;
   staffId: string;
   contractNumber: string;
+  contractScope?: DoctorContractScope; // PERSONAL | DEPARTMENT | CLINIC_DEFAULT
+  departmentName?: string;
   startDate: string;
   endDate: string;
   visitTariff: number;
@@ -1325,11 +1352,13 @@ export interface StaffContract {
   nightShiftTariff: number;
   revenueThreshold: number; // آستانه درآمد
   calculationMethod: CommissionCalculationMethod;
+  fixedBaseSalary?: number; // Base salary for Hybrid mode
   commissionTiers: CommissionTier[];
   insuranceSupport: boolean;
   contractStatus: 'ACTIVE' | 'EXPIRED' | 'DRAFT' | 'TERMINATED';
   createdAt: string;
   notes?: string;
+  auditLogs?: ContractAuditLog[];
 }
 
 export interface ShiftPerformanceRecord {

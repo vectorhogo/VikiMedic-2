@@ -530,6 +530,7 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
   const handleUpdateItemDiscount = (itemId: string, discountVal: number) => {
     if (!canEdit) return;
     const safeDiscount = Math.max(0, discountVal);
+    const itemObj = items.find((i) => i.id === itemId);
     const updatedItems = items.map((i) => {
       if (i.id === itemId) {
         return {
@@ -542,6 +543,15 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
     });
 
     setItems(updatedItems);
+
+    if (activeOrderId && activeOrder && itemObj) {
+      updatePatientOrder(
+        activeOrderId,
+        { ...activeOrder, items: updatedItems },
+        'EDIT_PRICE',
+        `ویرایش تخفیف ${itemObj.itemName} به ${safeDiscount.toLocaleString('fa-IR')} تومان`
+      );
+    }
   };
 
   // Update Item Instructions / Dosage
@@ -907,6 +917,24 @@ export const PatientOrderWorkflowModal: React.FC<PatientOrderWorkflowModalProps>
                         <td className="py-2 px-2 text-center">
                           {canEdit ? (
                             <div className="flex items-center justify-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateItemQuantity(item.id, item.quantity + 1)}
+                                className="p-1.5 text-emerald-500 hover:bg-emerald-500/10 rounded-lg transition border border-emerald-500/20"
+                                title="افزایش تعداد (➕ Increase Qty)"
+                              >
+                                <Plus className="w-3.5 h-3.5" />
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() => handleUpdateItemQuantity(item.id, item.quantity - 1)}
+                                className="p-1.5 text-amber-500 hover:bg-amber-500/10 rounded-lg transition border border-amber-500/20"
+                                title="کاهش تعداد (➖ Decrease Qty)"
+                              >
+                                <Minus className="w-3.5 h-3.5" />
+                              </button>
+
                               <button
                                 type="button"
                                 onClick={() => handleOpenEditItemModal(item)}

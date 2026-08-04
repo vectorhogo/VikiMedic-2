@@ -64,6 +64,7 @@ import {
 
 import { useClinic } from '../../application/ClinicContext';
 import { useTheme } from '../ThemeContext';
+import { DoctorCompensationEngine } from '../components/medical-staff/DoctorCompensationEngine';
 import {
   MedicalStaffMember,
   StaffCategory,
@@ -721,12 +722,13 @@ export const MedicalStaffCenterModule: React.FC = () => {
 
     let totalCommission = 0;
     const breakdown: { tierLabel: string; revenueInTier: number; percent: number; commission: number }[] = [];
+    const method = contract.calculationMethod || 'MULTI_LEVEL_PERCENTAGE';
+    const baseSalary = contract.fixedBaseSalary || 0;
 
-    if (contract.calculationMethod === 'PERCENTAGE_OF_TOTAL') {
-      // Find matching tier based on grossRevenue
+    if (method === 'FIXED_PERCENTAGE' || method === 'PERCENTAGE_OF_TOTAL') {
       const matchingTier = contract.commissionTiers.find((t) => {
         if (t.maxRevenue === null) return grossRevenue >= t.minRevenue;
-        return grossRevenue >= t.minRevenue && grossRevenue < t.maxRevenue;
+        return grossRevenue >= t.minRevenue && grossRevenue <= t.maxRevenue;
       }) || contract.commissionTiers[contract.commissionTiers.length - 1];
 
       totalCommission = Math.round((grossRevenue * matchingTier.commissionPercentage) / 100);
@@ -736,8 +738,21 @@ export const MedicalStaffCenterModule: React.FC = () => {
         percent: matchingTier.commissionPercentage,
         commission: totalCommission
       });
+    } else if (method === 'FIXED_AMOUNT') {
+      const matchingTier = contract.commissionTiers.find((t) => {
+        if (t.maxRevenue === null) return grossRevenue >= t.minRevenue;
+        return grossRevenue >= t.minRevenue && grossRevenue <= t.maxRevenue;
+      }) || contract.commissionTiers[0];
+
+      totalCommission = matchingTier?.fixedAmount || 1500000;
+      breakdown.push({
+        tierLabel: matchingTier?.tierName || 'مبلغ ثابت پله',
+        revenueInTier: grossRevenue,
+        percent: 0,
+        commission: totalCommission
+      });
     } else {
-      // PERCENTAGE_OF_EXCESS (Multi-tiered progressive on excess)
+      // MULTI_LEVEL_PERCENTAGE / PERCENTAGE_OF_EXCESS / HYBRID
       contract.commissionTiers.forEach((tier) => {
         if (grossRevenue > tier.minRevenue) {
           const upper = tier.maxRevenue !== null ? Math.min(grossRevenue, tier.maxRevenue) : grossRevenue;
@@ -746,9 +761,9 @@ export const MedicalStaffCenterModule: React.FC = () => {
             const tierCommission = Math.round((taxableAmount * tier.commissionPercentage) / 100);
             totalCommission += tierCommission;
             breakdown.push({
-              tierLabel: `پله ${tier.minRevenue.toLocaleString('fa-IR')} تا ${
+              tierLabel: `${tier.tierName || 'پله'} (${tier.minRevenue.toLocaleString('fa-IR')} تا ${
                 tier.maxRevenue ? tier.maxRevenue.toLocaleString('fa-IR') : 'بالاتر'
-              }`,
+              })`,
               revenueInTier: taxableAmount,
               percent: tier.commissionPercentage,
               commission: tierCommission
@@ -756,6 +771,9 @@ export const MedicalStaffCenterModule: React.FC = () => {
           }
         }
       });
+      if (method === 'HYBRID') {
+        totalCommission += baseSalary;
+      }
     }
 
     return { totalCommission, breakdown };
@@ -1387,198 +1405,20 @@ export const MedicalStaffCenterModule: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: CONTRACTS & TARIFFS */}
+      {/* TAB 2: CONTRACTS & COMPENSATION ENGINE */}
       {activeTab === 'CONTRACTS' && (
-        <div className="space-y-6">
-          {/* Contracts List & Multi-level Tier Calculator */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column: Contracts List (2 Cols) */}
-            <div className="lg:col-span-2 space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-sm text-[var(--text-main)] flex items-center gap-2">
-                  <FileText className="w-4 h-4 text-[#283F24]" />
-                  <span>قراردادهای فعال و قوانین تعرفه پله‌ای</span>
-                </h3>
-                <button
-                  onClick={() => setIsAddContractOpen(true)}
-                  className="px-3 py-1.5 bg-[#283F24] hover:bg-[#35542F] text-white rounded-xl text-xs font-bold transition flex items-center gap-1.5"
-                >
-                  <Plus className="w-4 h-4" />
-                  <span>افزودن قرارداد</span>
-                </button>
-              </div>
-
-              {contracts.map((contract) => {
-                const staffObj = staffList.find((s) => s.id === contract.staffId);
-                return (
-                  <div
-                    key={contract.id}
-                    className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-5 rounded-2xl shadow-sm space-y-4"
-                  >
-                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-[var(--border-subtle)] pb-3">
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-black text-sm text-[var(--text-main)]">
-                            {staffObj?.fullName || 'پزشک ناشناس'}
-                          </span>
-                          <span className="px-2 py-0.5 bg-[#283F24]/10 text-[#283F24] text-[10px] font-mono font-bold rounded border border-[#62745D]/30">
-                            {contract.contractNumber}
-                          </span>
-                        </div>
-                        <p className="text-xs text-[var(--text-muted)] mt-0.5">{staffObj?.specialty}</p>
-                      </div>
-
-                      <div className="flex items-center gap-2">
-                        <span className="px-2.5 py-1 bg-emerald-500/10 text-emerald-700 text-[11px] font-extrabold rounded-full border border-emerald-500/30">
-                          {contract.calculationMethod === 'PERCENTAGE_OF_EXCESS'
-                            ? 'کمیسیون پله‌ای از مازاد درآمد'
-                            : 'کمیسیون کل درآمد'}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Tariff Specs */}
-                    <div className="grid grid-cols-2 md:grid-cols-4 gap-3 text-xs bg-[var(--bg-app)] p-3 rounded-xl border border-[var(--border-subtle)]">
-                      <div>
-                        <span className="text-[var(--text-muted)] block text-[10px]">تعرفه ویزیت:</span>
-                        <span className="font-bold font-mono text-[#283F24]">
-                          {contract.visitTariff.toLocaleString('fa-IR')} تومان
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[var(--text-muted)] block text-[10px]">شیفت صبح/عصر:</span>
-                        <span className="font-bold font-mono text-[var(--text-main)]">
-                          {contract.morningShiftTariff.toLocaleString('fa-IR')} / {contract.eveningShiftTariff.toLocaleString('fa-IR')}
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[var(--text-muted)] block text-[10px]">آستانه درآمد:</span>
-                        <span className="font-bold font-mono text-amber-600">
-                          {contract.revenueThreshold.toLocaleString('fa-IR')} تومان
-                        </span>
-                      </div>
-                      <div>
-                        <span className="text-[var(--text-muted)] block text-[10px]">اعتبار قرارداد:</span>
-                        <span className="font-bold font-mono text-slate-600">
-                          {contract.startDate} تا {contract.endDate}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Multi-Level Tiers Display */}
-                    <div>
-                      <h4 className="text-[11px] font-bold text-[var(--text-muted)] mb-2 flex items-center gap-1">
-                        <Sliders className="w-3.5 h-3.5 text-[#283F24]" />
-                        <span>پله‌های کمیسیون تعریف شده:</span>
-                      </h4>
-                      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-2">
-                        {contract.commissionTiers.map((tier, idx) => (
-                          <div
-                            key={tier.id}
-                            className="bg-[#E4EBE0]/40 border border-[#62745D]/30 p-2.5 rounded-xl text-xs space-y-1"
-                          >
-                            <div className="text-[10px] text-[#283F24] font-bold">پله شماره {idx + 1}</div>
-                            <div className="font-mono text-[11px] font-black text-[var(--text-main)]">
-                              {tier.minRevenue.toLocaleString('fa-IR')} تا{' '}
-                              {tier.maxRevenue ? tier.maxRevenue.toLocaleString('fa-IR') : 'بالاتر'}
-                            </div>
-                            <div className="text-emerald-700 font-bold text-xs">
-                              نرخ: {tier.commissionPercentage}٪
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Right Column: Live Commission Calculator Tool */}
-            <div className="space-y-4">
-              <div className="bg-[var(--bg-surface)] border border-[var(--border-subtle)] p-5 rounded-2xl shadow-sm space-y-4">
-                <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] pb-3">
-                  <Calculator className="w-5 h-5 text-[#283F24]" />
-                  <h3 className="font-bold text-sm text-[var(--text-main)]">
-                    ماشین‌حساب تست کمیسیون
-                  </h3>
-                </div>
-
-                <div className="space-y-3 text-xs">
-                  <div>
-                    <label className="block text-[var(--text-muted)] font-bold mb-1">انتخاب قرارداد پزشک:</label>
-                    <select
-                      value={selectedContractForTest}
-                      onChange={(e) => setSelectedContractForTest(e.target.value)}
-                      className="w-full p-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-app)] font-bold outline-none"
-                    >
-                      {contracts.map((c) => {
-                        const s = staffList.find((st) => st.id === c.staffId);
-                        return (
-                          <option key={c.id} value={c.id}>
-                            {s?.fullName} ({c.contractNumber})
-                          </option>
-                        );
-                      })}
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-[var(--text-muted)] font-bold mb-1">
-                      درآمد ناخالص تست (تومان):
-                    </label>
-                    <input
-                      type="number"
-                      step={500000}
-                      value={testRevenueInput}
-                      onChange={(e) => setTestRevenueInput(Number(e.target.value))}
-                      className="w-full p-2.5 rounded-xl border border-[var(--border-subtle)] bg-[var(--bg-app)] font-mono font-bold outline-none text-[#283F24]"
-                    />
-                  </div>
-
-                  {/* Test Calculation Output */}
-                  {(() => {
-                    const c = contracts.find((cnt) => cnt.id === selectedContractForTest);
-                    if (!c) return null;
-                    const result = calculateCommissionForRevenue(c, testRevenueInput);
-
-                    return (
-                      <div className="bg-[#E4EBE0] border border-[#62745D] p-4 rounded-xl space-y-3 mt-4">
-                        <div className="flex justify-between items-center border-b border-[#62745D]/30 pb-2">
-                          <span className="font-bold text-xs text-[#283F24]">روش محاسبه:</span>
-                          <span className="font-bold text-xs text-[var(--text-main)]">
-                            {c.calculationMethod === 'PERCENTAGE_OF_EXCESS'
-                              ? 'پله‌ای از مازاد'
-                              : 'درصد از کل'}
-                          </span>
-                        </div>
-
-                        <div className="space-y-1.5 text-[11px]">
-                          <div className="font-bold text-[var(--text-muted)]">تفکیک پله‌ها:</div>
-                          {result.breakdown.map((b, i) => (
-                            <div key={i} className="flex justify-between font-mono bg-white/60 p-2 rounded-lg">
-                              <span>{b.tierLabel}:</span>
-                              <span className="font-bold text-[#283F24]">
-                                {b.commission.toLocaleString('fa-IR')} تومان
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-
-                        <div className="pt-2 border-t border-[#62745D]/40 flex justify-between items-center">
-                          <span className="font-black text-xs text-[#283F24]">مجموع کمیسیون:</span>
-                          <span className="font-black text-sm font-mono text-emerald-800">
-                            {result.totalCommission.toLocaleString('fa-IR')} تومان
-                          </span>
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
+        <DoctorCompensationEngine
+          contracts={contracts}
+          staffList={staffList}
+          selectedStaffId={selectedStaffId}
+          currentUserRole="ADMIN"
+          currentUserName="مدیر ارشد کلینیک"
+          onSaveContract={(updatedContract) => {
+            setContracts((prev) =>
+              prev.map((c) => (c.id === updatedContract.id ? updatedContract : c))
+            );
+          }}
+        />
       )}
 
       {/* TAB 3: SHIFT PERFORMANCE */}

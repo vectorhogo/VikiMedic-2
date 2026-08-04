@@ -1,0 +1,32 @@
+{
+  "version": "2.1.0",
+  "buildNumber": "1042",
+  "releaseDate": "۱۴۰۵/۰۵/۱۵",
+  "releaseDateIso": "2026-08-01",
+  "isMandatory": false,
+  "minSupportedVersion": "1.0.0",
+  "downloadUrl": "https://github.com/vectorhogo/VikiMedic-2/releases/download/v2.1.0/VikiMedic-Setup-2.1.0.exe",
+  "webUrl": "https://vikimedic.vercel.app",
+  "releaseNotes": "• اضافه شدن سیستم کامل مدیریت به‌روزرسانی و انتشار نسخه v2.1.0\n• پشتیبانی از کانال‌های انتشار Stable, Beta, Developer\n• قابلیت دانلود در پس‌زمینه و اعتبارسنجی Checksum SHA-256\n• هماهنگی انتشار مستقل نسخه دسکتاپ (Tauri / GitHub Releases) و وب (Vercel)\n• بهینه‌سازی محاسبات و عملکرد کارت‌های ارزیابی کلینیکال و مالی",
+  "checksum": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+  "sizeMb": "48.5 MB",
+  "channel": "Stable",
+  "repository": "https://github.com/vectorhogo/VikiMedic-2",
+  "changelog": {
+    "newFeatures": [
+      "سیستم جدید مدیریت پیشرفته به‌روزرسانی‌ها و مرکز دانلود پس‌زمینه",
+      "امکان تنظیم یادآور هوشمند (۳۰ دقیقه، ۲ ساعت، فردا، اجرای بعدی، دلخواه)",
+      "ثبت کامل تاریخچه و لوگ‌های مدیریتی (Audit Logs) به‌روزرسانی"
+    ],
+    "bugFixes": [
+      "برطرف‌سازی کامل مشکل نمایش چندباره و تکراری اعلان‌های به‌روزرسانی",
+      "اصلاح سیستم اعتبارسنجی کدهای کاتالوگ و ردیابی خدمات نوبت‌دهی",
+      "رفع باگ‌های رابط کاربری در حالت آفلاین و عدم بروز انجماد تصویر"
+    ],
+    "securityImprovements": [
+      "اعتبارسنجی خودکار کدهای کنترلی فایل (Checksum SHA-256)",
+      "سطوح دسترسی اختصاصی مدیران کلینیک جهت پیکربندی کانال‌های انتشار"
+    ]
+  }
+}
+

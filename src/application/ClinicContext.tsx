@@ -4,6 +4,7 @@
  */
 
 import React, { createContext, useContext, useEffect, useState } from 'react';
+import { notificationEngine } from '../infrastructure/notificationEngine';
 import {
   Clinic,
   UserStaff,
@@ -219,7 +220,7 @@ interface ClinicContextType {
 
   // Notifications
   notifications: NotificationItem[];
-  addNotification: (message: string, type?: NotificationItem['type']) => void;
+  addNotification: (message: any, type?: NotificationItem['type']) => void;
   removeNotification: (id: string) => void;
 
   // Patch 03.0: User Management Foundation Engine
@@ -1266,14 +1267,51 @@ export const ClinicProvider: React.FC<{ children: React.ReactNode }> = ({ childr
   };
 
   // Notifications
-  const addNotification = (message: string, type: NotificationItem['type'] = 'info') => {
+  const addNotification = (
+    messageOrObj: any,
+    typeParam: NotificationItem['type'] = 'info'
+  ) => {
+    let finalMsg = '';
+    let finalType = typeParam;
+
+    if (typeof messageOrObj === 'object' && messageOrObj !== null) {
+      finalMsg = messageOrObj.message || messageOrObj.text || '';
+      if (messageOrObj.type) {
+        finalType = messageOrObj.type;
+      }
+    } else {
+      finalMsg = String(messageOrObj || '');
+    }
+
     const notif: NotificationItem = {
       id: 'n-' + Date.now() + Math.random(),
-      type,
-      message,
+      type: finalType,
+      message: finalMsg,
       timestamp: new Date().toLocaleTimeString('fa-IR', { hour: '2-digit', minute: '2-digit' }),
     };
     setNotifications((prev) => [...prev.slice(-3), notif]);
+
+    // Also register in Central Smart Notification Center
+    const prioMap: Record<NotificationItem['type'], 'NORMAL' | 'HIGH' | 'CRITICAL'> = {
+      success: 'NORMAL',
+      info: 'NORMAL',
+      warning: 'HIGH',
+      danger: 'CRITICAL'
+    };
+    const catMap: Record<NotificationItem['type'], 'INFO' | 'SYSTEM'> = {
+      success: 'INFO',
+      info: 'INFO',
+      warning: 'SYSTEM',
+      danger: 'SYSTEM'
+    };
+
+    notificationEngine.addNotification({
+      title: finalType === 'danger' ? 'خطای سیستم / هشدار' : finalType === 'warning' ? 'هشدار عملیاتی' : 'اطلاعیه سیستم',
+      message: finalMsg,
+      category: catMap[finalType] || 'INFO',
+      priority: prioMap[finalType] || 'NORMAL',
+      dedupKey: `ctx_${finalType}_${finalMsg.substring(0, 30)}`
+    });
   };
 
   const removeNotification = (id: string) => {

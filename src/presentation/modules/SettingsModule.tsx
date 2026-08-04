@@ -36,6 +36,7 @@ import { DisplayPerformancePanel } from '../components/settings/DisplayPerforman
 import { WorkspaceCustomizationPanel } from '../components/system/WorkspaceCustomizationPanel';
 import { ResetProtectionPanel } from '../components/system/ResetProtectionPanel';
 import { ModuleIntegrityPanel } from '../components/settings/ModuleIntegrityPanel';
+import { UpdateCenterPanel } from '../components/settings/UpdateCenterPanel';
 
 export const SettingsModule: React.FC = () => {
   const {
@@ -57,6 +58,8 @@ export const SettingsModule: React.FC = () => {
   // Active Settings Tab State
   const [activeTab, setActiveTab] = useState<
     | 'users'
+    | 'software_updates'
+    | 'update_center'
     | 'workspace_customization'
     | 'reset_protection'
     | 'system_setup'
@@ -228,6 +231,18 @@ export const SettingsModule: React.FC = () => {
       {/* Navigation Tabs */}
       <div className="flex items-center gap-2 border-b border-[var(--border-subtle)] pb-2 text-xs font-bold overflow-x-auto">
         <button
+          onClick={() => setActiveTab('software_updates')}
+          className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition ${
+            activeTab === 'software_updates' || activeTab === 'update_center'
+              ? 'bg-sky-600 text-white shadow-md'
+              : 'bg-[var(--bg-surface)] hover:bg-slate-100 dark:hover:bg-slate-800 text-[var(--text-muted)]'
+          }`}
+        >
+          <RefreshCw className="w-4 h-4 text-sky-400" />
+          <span>به‌روزرسانی نرم‌افزار (Software Updates)</span>
+        </button>
+
+        <button
           onClick={() => setActiveTab('users')}
           className={`px-4 py-2.5 rounded-xl flex items-center gap-2 transition ${
             activeTab === 'users'
@@ -371,6 +386,9 @@ export const SettingsModule: React.FC = () => {
           <span>پایگاه‌داده و تم</span>
         </button>
       </div>
+
+      {/* Tab: Software Updates & Update Center (Phase 00.7) */}
+      {(activeTab === 'software_updates' || activeTab === 'update_center') && <UpdateCenterPanel />}
 
       {/* Tab 0: User Management Foundation (Patch 03.0) */}
       {activeTab === 'users' && <UserManagementModule />}

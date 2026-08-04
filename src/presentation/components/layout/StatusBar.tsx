@@ -7,6 +7,7 @@ import React, { useEffect, useState } from 'react';
 import { Database, Cpu, Clock, Wifi, Save, ShieldCheck, CheckCircle2 } from 'lucide-react';
 import { useClinic } from '../../../application/ClinicContext';
 import { getSupabaseStatus } from '../../../infrastructure/supabaseClient';
+import { UpdateService } from '../../../infrastructure/updateService';
 
 export const StatusBar: React.FC = () => {
   const { activeClinic, patients, activeUser } = useClinic();
@@ -75,8 +76,8 @@ export const StatusBar: React.FC = () => {
         <div className="h-3 w-px bg-slate-700 hidden lg:block" />
 
         {/* System Version */}
-        <div className="flex items-center gap-1 text-[10px] text-blue-300 font-mono bg-blue-900/40 px-1.5 py-0.2 rounded border border-blue-700/50">
-          <span>v2.4.0 Phase 04</span>
+        <div className="flex items-center gap-1 text-[10px] text-sky-300 font-mono bg-sky-900/40 px-1.5 py-0.2 rounded border border-sky-700/50">
+          <span>v{UpdateService.getCurrentVersion()}</span>
         </div>
 
         <div className="h-3 w-px bg-slate-700" />
